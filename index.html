@@ -35,7 +35,7 @@
       position: relative;
       width: 100%;
       height: 68vh;
-      min-height: 440px;
+      min-height: 460px;
       background: #f3f4f6;
       overflow: hidden;
     }
@@ -69,7 +69,7 @@
         <i class="fa fa-cube text-primary text-2xl"></i>
         <div>
           <div class="text-lg font-bold">工业3D模型展示</div>
-          <div class="text-xs text-slate-500">支持 GLB / GLTF / OBJ / STL</div>
+          <div class="text-xs text-slate-500">GLB / GLTF / OBJ / STL Viewer</div>
         </div>
       </div>
       <a href="#controls" class="text-sm hover:text-primary transition">控制面板</a>
@@ -118,7 +118,7 @@
 
           <div>
             <label class="block text-sm font-medium mb-2">环境光照</label>
-            <input id="ambient-light" type="range" min="20" max="160" value="100" class="w-full" />
+            <input id="ambient-light" type="range" min="60" max="220" value="150" class="w-full" />
             <div class="flex justify-between text-xs text-slate-500 mt-1">
               <span>暗</span>
               <span>亮</span>
@@ -151,7 +151,7 @@
 
         <div class="mt-6 text-sm text-slate-600 leading-7">
           <p>鼠标左键拖动旋转，滚轮缩放，右键平移。</p>
-          <p>推荐优先上传 GLB；如果 FreeCAD 转换效果不理想，也可尝试 OBJ 或 STL。</p>
+          <p>这版会强制清理 FreeCAD 导出模型里的暗顶点色和原贴图影响，优先解决“整体发黑”的问题。</p>
         </div>
       </div>
     </section>
@@ -181,15 +181,15 @@
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf3f4f6);
-    scene.fog = new THREE.Fog(0xf3f4f6, 18, 38);
+    scene.fog = new THREE.Fog(0xf3f4f6, 25, 60);
 
     const camera = new THREE.PerspectiveCamera(
-      55,
+      50,
       container.clientWidth / container.clientHeight,
       0.1,
-      2000
+      3000
     );
-    camera.position.set(4, 2.5, 6);
+    camera.position.set(5, 3, 8);
 
     const renderer = new THREE.WebGLRenderer({
       canvas,
@@ -200,45 +200,50 @@
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
     controls.enablePan = true;
     controls.minDistance = 0.5;
-    controls.maxDistance = 1000;
+    controls.maxDistance = 1500;
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
     scene.add(ambientLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xd7dde5, 0.95);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xe5e7eb, 1.3);
     scene.add(hemiLight);
 
-    const mainLight = new THREE.DirectionalLight(0xffffff, 1.65);
-    mainLight.position.set(8, 12, 10);
+    const mainLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    mainLight.position.set(10, 14, 12);
     mainLight.castShadow = true;
     mainLight.shadow.mapSize.width = 2048;
     mainLight.shadow.mapSize.height = 2048;
     mainLight.shadow.camera.near = 0.5;
-    mainLight.shadow.camera.far = 80;
+    mainLight.shadow.camera.far = 120;
     mainLight.shadow.bias = -0.0005;
     scene.add(mainLight);
 
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.95);
-    fillLight.position.set(-8, 5, 8);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 1.25);
+    fillLight.position.set(-10, 6, 10);
     scene.add(fillLight);
 
-    const rimLight = new THREE.DirectionalLight(0xffffff, 0.55);
-    rimLight.position.set(0, 7, -10);
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    rimLight.position.set(0, 10, -12);
     scene.add(rimLight);
 
-    const grid = new THREE.GridHelper(24, 12, 0xd1d5db, 0xe5e7eb);
+    const frontLight = new THREE.DirectionalLight(0xffffff, 0.95);
+    frontLight.position.set(0, 3, 14);
+    scene.add(frontLight);
+
+    const grid = new THREE.GridHelper(28, 14, 0xd1d5db, 0xe5e7eb);
     grid.position.y = -1.2;
     scene.add(grid);
 
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(30, 30),
-      new THREE.ShadowMaterial({ opacity: 0.07 })
+      new THREE.PlaneGeometry(40, 40),
+      new THREE.ShadowMaterial({ opacity: 0.05 })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -1.19;
@@ -263,9 +268,26 @@
     function disposeMaterial(material) {
       if (!material) return;
       if (Array.isArray(material)) {
-        material.forEach(m => m && m.dispose && m.dispose());
-      } else if (material.dispose) {
-        material.dispose();
+        material.forEach(m => {
+          if (!m) return;
+          if (m.map) m.map.dispose();
+          if (m.normalMap) m.normalMap.dispose();
+          if (m.roughnessMap) m.roughnessMap.dispose();
+          if (m.metalnessMap) m.metalnessMap.dispose();
+          if (m.aoMap) m.aoMap.dispose();
+          if (m.emissiveMap) m.emissiveMap.dispose();
+          if (m.alphaMap) m.alphaMap.dispose();
+          if (m.dispose) m.dispose();
+        });
+      } else {
+        if (material.map) material.map.dispose();
+        if (material.normalMap) material.normalMap.dispose();
+        if (material.roughnessMap) material.roughnessMap.dispose();
+        if (material.metalnessMap) material.metalnessMap.dispose();
+        if (material.aoMap) material.aoMap.dispose();
+        if (material.emissiveMap) material.emissiveMap.dispose();
+        if (material.alphaMap) material.alphaMap.dispose();
+        if (material.dispose) material.dispose();
       }
     }
 
@@ -279,28 +301,27 @@
       modelRoot = null;
     }
 
-    function fitCameraToObject(object, offset = 1.55) {
+    function fitCameraToObject(object, offset = 1.75) {
       const box = new THREE.Box3().setFromObject(object);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
 
-      const maxDim = Math.max(size.x, size.y, size.z);
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
       const fov = camera.fov * (Math.PI / 180);
       let cameraZ = Math.abs((maxDim / 2) / Math.tan(fov / 2));
       cameraZ *= offset;
 
       camera.position.set(
-        center.x + maxDim * 0.35,
-        center.y + maxDim * 0.22,
+        center.x + maxDim * 0.5,
+        center.y + maxDim * 0.28,
         center.z + cameraZ
       );
 
       controls.target.copy(center);
       controls.update();
 
-      const minZ = box.min.z;
-      const cameraToFarEdge = (minZ < 0) ? -minZ + cameraZ : cameraZ - minZ;
-      camera.far = Math.max(1000, cameraToFarEdge * 4);
+      camera.near = Math.max(0.01, maxDim / 1000);
+      camera.far = Math.max(3000, maxDim * 20);
       camera.updateProjectionMatrix();
 
       mainLight.target.position.copy(center);
@@ -310,31 +331,77 @@
     function createIndustrialMaterial(colorHex) {
       return new THREE.MeshStandardMaterial({
         color: new THREE.Color(colorHex),
-        metalness: 0.18,
-        roughness: 0.58,
-        envMapIntensity: 0.8
+        metalness: 0.04,
+        roughness: 0.74,
+        vertexColors: false,
+        transparent: false,
+        opacity: 1
       });
+    }
+
+    function sanitizeGeometry(geometry) {
+      if (!geometry) return;
+
+      if (geometry.attributes.color) {
+        geometry.deleteAttribute('color');
+      }
+
+      if (geometry.attributes.uv2) {
+        geometry.deleteAttribute('uv2');
+      }
+
+      geometry.computeVertexNormals();
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
     }
 
     function applyIndustrialMaterial(object, colorHex) {
       object.traverse((obj) => {
-        if (obj.isMesh) {
-          if (obj.geometry) obj.geometry.computeVertexNormals();
+        if (!obj.isMesh) return;
 
-          disposeMaterial(obj.material);
-          obj.material = createIndustrialMaterial(colorHex);
-          obj.castShadow = true;
-          obj.receiveShadow = true;
-        }
+        sanitizeGeometry(obj.geometry);
+        disposeMaterial(obj.material);
+
+        obj.material = createIndustrialMaterial(colorHex);
+        obj.castShadow = true;
+        obj.receiveShadow = true;
       });
     }
 
     function applyColorToModel(colorHex) {
       currentColor = colorHex;
       if (!modelRoot) return;
+
       modelRoot.traverse((obj) => {
-        if (obj.isMesh && obj.material && obj.material.color) {
+        if (!obj.isMesh || !obj.material) return;
+
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(mat => {
+            if (!mat) return;
+            mat.color.set(colorHex);
+            mat.vertexColors = false;
+            mat.map = null;
+            mat.aoMap = null;
+            mat.normalMap = null;
+            mat.metalnessMap = null;
+            mat.roughnessMap = null;
+            mat.emissiveMap = null;
+            mat.transparent = false;
+            mat.opacity = 1;
+            mat.needsUpdate = true;
+          });
+        } else {
           obj.material.color.set(colorHex);
+          obj.material.vertexColors = false;
+          obj.material.map = null;
+          obj.material.aoMap = null;
+          obj.material.normalMap = null;
+          obj.material.metalnessMap = null;
+          obj.material.roughnessMap = null;
+          obj.material.emissiveMap = null;
+          obj.material.transparent = false;
+          obj.material.opacity = 1;
+          obj.material.needsUpdate = true;
         }
       });
     }
@@ -357,8 +424,8 @@
       group.add(body);
 
       const shaftMat = new THREE.MeshStandardMaterial({
-        color: 0xb8c0c8,
-        metalness: 0.78,
+        color: 0xc2c8cf,
+        metalness: 0.6,
         roughness: 0.28
       });
 
@@ -391,9 +458,25 @@
       return group;
     }
 
+    function centerModelToGround(object) {
+      const box = new THREE.Box3().setFromObject(object);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+
+      object.position.x -= center.x;
+      object.position.z -= center.z;
+      object.position.y -= box.min.y;
+      object.position.y -= 1.2;
+
+      if (size.y < 0.01) {
+        object.scale.setScalar(100);
+      }
+    }
+
     function finalizeLoadedModel(object) {
       modelRoot = object;
       applyIndustrialMaterial(modelRoot, currentColor);
+      centerModelToGround(modelRoot);
       scene.add(modelRoot);
       fitCameraToObject(modelRoot);
       hideLoading();
@@ -420,8 +503,7 @@
           }
         },
         () => {
-          const fallback = createFallbackModel();
-          finalizeLoadedModel(fallback);
+          finalizeLoadedModel(createFallbackModel());
         }
       );
     }
@@ -471,7 +553,7 @@
       loader.load(
         url,
         (geometry) => {
-          geometry.computeVertexNormals();
+          sanitizeGeometry(geometry);
 
           const mesh = new THREE.Mesh(
             geometry,
@@ -528,9 +610,13 @@
     });
 
     document.getElementById('ambient-light').addEventListener('input', (e) => {
-      const val = Number(e.target.value) / 100;
-      ambientLight.intensity = val;
-      hemiLight.intensity = 0.75 + val * 0.2;
+      const v = Number(e.target.value) / 100;
+      ambientLight.intensity = v;
+      hemiLight.intensity = 0.9 + v * 0.2;
+      mainLight.intensity = 1.2 + v * 0.65;
+      fillLight.intensity = 0.8 + v * 0.3;
+      rimLight.intensity = 0.55 + v * 0.18;
+      frontLight.intensity = 0.65 + v * 0.2;
     });
 
     document.getElementById('scale-control').addEventListener('input', (e) => {
@@ -549,16 +635,21 @@
 
     document.getElementById('reset-view').addEventListener('click', () => {
       if (!modelRoot) return;
+
       modelRoot.rotation.set(0, 0, 0);
       modelRoot.scale.set(1, 1, 1);
 
       document.getElementById('scale-control').value = 100;
       document.getElementById('rotation-speed').value = 5;
-      document.getElementById('ambient-light').value = 100;
+      document.getElementById('ambient-light').value = 150;
 
-      ambientLight.intensity = 1.0;
-      hemiLight.intensity = 0.95;
       rotationSpeed = 0.005;
+      ambientLight.intensity = 1.5;
+      hemiLight.intensity = 1.3;
+      mainLight.intensity = 2.2;
+      fillLight.intensity = 1.25;
+      rimLight.intensity = 0.85;
+      frontLight.intensity = 0.95;
 
       fitCameraToObject(modelRoot);
       applyColorToModel(currentColor);
