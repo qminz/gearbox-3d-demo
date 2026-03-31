@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工业齿轮箱3D可视化</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/loaders/DRACOLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/loaders/TDSLoader.js"></script>
+    
+    <!-- 动画导出相关库 -->
+    <script src="https://cdn.jsdelivr.net/npm/ffmpeg.wasm@0.11.0/ffmpeg.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ffmpeg.wasm@0.11.0/core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF6B00',
+                        secondary: '#1E293B',
+                        dark: '#0F172A',
+                        light: '#F8FAFC'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-shadow {
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .bg-gradient {
+                background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+            }
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+        }
+    </style>
+    <style>
+        body {
+            overflow-x: hidden;
+        }
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            background-color: #F8FAFC;
+            overflow: hidden;
+        }
+        #gearbox-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .control-panel {
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        .btn {
+            transition: all 0.2s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .feature-icon {
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover .feature-icon {
+            transform: scale(1.1);
+            color: #FF6B00;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 120px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-light text-secondary">
+    <!-- 导航栏 -->
+    <nav class="bg-white shadow-md">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-cogs text-primary text-2xl"></i>
+                <span class="text-xl font-bold">工业齿轮箱3D可视化</span>
+            </div>
+            <div class="hidden md:flex space-x-6">
+                <a href="#features" class="hover:text-primary transition-all-300">功能特点</a>
+                <a href="#controls" class="hover:text-primary transition-all-300">操作指南</a>
+                <a href="#details" class="hover:text-primary transition-all-300">技术细节</a>
+            </div>
+            <button class="md:hidden focus:outline-none" id="mobile-menu-button">
+                <i class="fa fa-bars text-xl"></i>
+            </button>
+        </div>
+        <!-- 移动端菜单 -->
+        <div class="md:hidden hidden bg-white shadow-lg absolute w-full z-10" id="mobile-menu">
+            <div class="container mx-auto px-4 py-2 flex flex-col space-y-3">
+                <a href="#features" class="py-2 hover:text-primary transition-all-300">功能特点</a>
+                <a href="#controls" class="py-2 hover:text-primary transition-all-300">操作指南</a>
+                <a href="#details" class="py-2 hover:text-primary transition-all-300">技术细节</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- 3D模型展示区 -->
+        <section class="mb-12">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="p-4 bg-secondary text-white flex justify-between items-center">
+                    <h2 class="text-xl font-semibold">工业齿轮箱3D模型</h2>
+                    <div class="flex space-x-2">
+                        <button class="bg-primary hover:bg-opacity-90 text-white px-3 py-1 rounded-md btn" id="reset-view">
+                            <i class="fa fa-refresh mr-1"></i>重置视图
+                        </button>
+                        <button class="bg-secondary hover:bg-opacity-90 text-white px-3 py-1 rounded-md btn" id="upload-model-btn">
+                            <i class="fa fa-upload mr-1"></i>上传模型
+                        </button>
+                        <button class="bg-green-600 hover:bg-opacity-90 text-white px-3 py-1 rounded-md btn" id="export-animation-btn">
+                            <i class="fa fa-download mr-1"></i>导出动画
+                        </button>
+                    </div>
+                </div>
+                <div id="canvas-container" class="rounded-b-xl">
+                    <canvas id="gearbox-canvas"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- 控制面板 -->
+        <section class="mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧控制面板 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-xl shadow-lg p-6 control-panel">
+                    <h3 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-sliders text-primary mr-2"></i>
+                        模型控制
+                    </h3>
+                    <div class="space-y-4">
+                        <!-- 旋转控制 -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">旋转速度</label>
+                            <input type="range" min="0" max="10" value="5" class="w-full" id="rotation-speed">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>慢</span>
+                                <span>快</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 缩放控制 -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">缩放比例</label>
+                            <input type="range" min="50" max="150" value="100" class="w-full" id="scale-control">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>小</span>
+                                <span>大</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 颜色控制 -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">模型颜色</label>
+                            <div class="grid grid-cols-4 gap-2">
+                                <button class="w-full h-8 rounded-md bg-[#FF6B00] border-2 border-transparent hover:border-gray-400 transition-all-300 color-btn" data-color="#FF6B00"></button>
+                                <button class="w-full h-8 rounded-md bg-[#2563EB] border-2 border-transparent hover:border-gray-400 transition-all-300 color-btn" data-color="#2563EB"></button>
+                                <button class="w-full h-8 rounded-md bg-[#10B981] border-2 border-transparent hover:border-gray-400 transition-all-300 color-btn" data-color="#10B981"></button>
+                                <button class="w-full h-8 rounded-md bg-[#6B7280] border-2 border-transparent hover:border-gray-400 transition-all-300 color-btn" data-color="#6B7280"></button>
+                            </div>
+                        </div>
+                        
+                        <!-- 环境光控制 -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2">环境光照</label>
+                            <input type="range" min="0" max="100" value="70" class="w-full" id="ambient-light">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>暗</span>
+                                <span>亮</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧信息面板 -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl shadow-lg p-6 control-panel h-full">
+                    <h3 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-info-circle text-primary mr-2"></i>
+                        齿轮箱信息
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h4 class="font-medium text-gray-700 mb-2">基本参数</h4>
+                            <ul class="space-y-2 text-sm">
+                                <li class="flex justify-between">
+                                    <span class="text-gray-600">型号:</span>
+                                    <span class="font-medium">RXF97</span>
+                                </li>
+                                <li class="flex justify-between">
+                                    <span class="text-gray-600">减速比:</span>
+                                    <span class="font-medium">1:10</span>
+                                </li>
+                                <li class="flex justify-between">
+                                    <span class="text-gray-600">输入功率:</span>
+                                    <span class="font-medium">7.5 kW</span>
+                                </li>
+                                <li class="flex justify-between">
+                                    <span class="text-gray-600">输出扭矩:</span>
+                                    <span class="font-medium">500 N·m</span>
+                                </li>
+                                <li class="flex justify-between">
+                                    <span class="text-gray-600">重量:</span>
+                                    <span class="font-medium">120 kg</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-gray-700 mb-2">应用领域</h4>
+                            <ul class="space-y-2 text-sm">
+                                <li class="flex items-center">
+                                    <i class="fa fa-check-circle text-primary mr-2"></i>
+                                    <span>工业自动化生产线</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fa fa-check-circle text-primary mr-2"></i>
+                                    <span>起重运输机械</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fa fa-check-circle text-primary mr-2"></i>
+                                    <span>矿山机械设备</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fa fa-check-circle text-primary mr-2"></i>
+                                    <span>风力发电设备</span>
+                                </li>
+                                <li class="flex items-center">
+                                    <i class="fa fa-check-circle text-primary mr-2"></i>
+                                    <span>船舶推进系统</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <h4 class="font-medium text-gray-700 mb-2">产品描述</h4>
+                        <p class="text-sm text-gray-600 leading-relaxed">
+                            该齿轮箱采用高精度硬齿面齿轮设计，具有传动效率高、噪音低、承载能力强、使用寿命长等特点。
+                            箱体采用优质铸铁材料，经精密加工而成，具有良好的刚性和散热性能。
+                            适用于各种工业传动场景，可根据客户需求进行定制化设计。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 功能特点 -->
+        <section id="features" class="mb-12">
+            <h2 class="text-2xl font-bold mb-6 text-center">功能特点</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- 特点1 -->
+                <div class="bg-white rounded-xl shadow-lg p-6 feature-card">
+                    <div class="w-12 h-12 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mb-4">
+                        <i class="fa fa-refresh text-primary text-xl feature-icon"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold mb-2">360°旋转查看</h3>
+                    <p class="text-gray-600">支持全方位旋转查看模型的每个细节，包括内部结构和连接部件，让您全面了解产品构造。</p>
+                </div>
+                
+                <!-- 特点2 -->
+                <div class="bg-white rounded-xl shadow-lg p-6 feature-card">
+                    <div class="w-12 h-12 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mb-4">
+                        <i class="fa fa-paint-brush text-primary text-xl feature-icon"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold mb-2">自定义外观</h3>
+                    <p class="text-gray-600">可根据需求调整模型颜色、材质和光照效果，实现个性化展示，满足不同场景的展示需求。</p>
+                </div>
+                
+                <!-- 特点3 -->
+                <div class="bg-white rounded-xl shadow-lg p-6 feature-card">
+                    <div class="w-12 h-12 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mb-4">
+                        <i class="fa fa-cubes text-primary text-xl feature-icon"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold mb-2">爆炸视图</h3>
+                    <p class="text-gray-600">支持模型爆炸视图功能，直观展示各部件之间的装配关系，便于理解产品结构和工作原理。</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 操作指南 -->
+        <section id="controls" class="mb-12">
+            <h2 class="text-2xl font-bold mb-6 text-center">操作指南</h2>
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-4">鼠标操作</h3>
+                        <ul class="space-y-3">
+                            <li class="flex items-start">
+                                <div class="w-8 h-8 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mr-3 mt-1">
+                                    <i class="fa fa-mouse-pointer text-primary"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium">左键拖动:</span>
+                                    <span class="text-gray-600">旋转模型</span>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <div class="w-8 h-8 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mr-3 mt-1">
+                                    <i class="fa fa-arrows-v text-primary"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium">滚轮:</span>
+                                    <span class="text-gray-600">缩放模型</span>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <div class="w-8 h-8 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mr-3 mt-1">
+                                    <i class="fa fa-hand-paper-o text-primary"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium">右键拖动:</span>
+                                    <span class="text-gray-600">平移视图</span>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold mb-4">控制面板</h3>
+                        <ul class="space-y-3">
+                            <li class="flex items-start">
+                                <div class="w-8 h-8 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mr-3 mt-1">
+                                    <i class="fa fa-sliders text-primary"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium">滑动条:</span>
+                                    <span class="text-gray-600">调整旋转速度、缩放比例和光照强度</span>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <div class="w-8 h-8 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mr-3 mt-1">
+                                    <i class="fa fa-paint-brush text-primary"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium">颜色按钮:</span>
+                                    <span class="text-gray-600">切换模型颜色</span>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <div class="w-8 h-8 bg-primary bg-opacity-10 rounded-full flex items-center justify-center mr-3 mt-1">
+                                    <i class="fa fa-refresh text-primary"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium">重置按钮:</span>
+                                    <span class="text-gray-600">恢复模型默认视图</span>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 技术细节 -->
+        <section id="details" class="mb-12">
+            <h2 class="text-2xl font-bold mb-6 text-center">技术细节</h2>
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-4">齿轮箱结构</h3>
+                        <ul class="space-y-2 text-gray-600">
+                            <li class="flex items-center">
+                                <i class="fa fa-circle text-xs text-primary mr-2"></i>
+                                <span>输入轴: 采用高强度合金钢，表面硬化处理</span>
+                            </li>
+                            <li class="flex items-center">
+                                <i class="fa fa-circle text-xs text-primary mr-2"></i>
+                                <span>齿轮: 高精度硬齿面齿轮，模数3.5，齿数20/200</span>
+                            </li>
+                            <li class="flex items-center">
+                                <i class="fa fa-circle text-xs text-primary mr-2"></i>
+                                <span>轴承: 高精度滚子轴承，使用寿命≥20000小时</span>
+                            </li>
+                            <li class="flex items-center">
+                                <i class="fa fa-circle text-xs text-primary mr-2"></i>
+                                <span>箱体: 优质铸铁，精密加工，具有良好的刚性</span>
+                            </li>
+                            <li class="flex items-center">
+                                <i class="fa fa-circle text-xs text-primary mr-2"></i>
+                                <span>密封: 双唇骨架油封，防泄漏性能优异</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold mb-4">性能参数</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span>传动效率</span>
+                                    <span class="font-medium">96%</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-primary h-2 rounded-full" style="width: 96%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span>噪音等级</span>
+                                    <span class="font-medium">≤75dB</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-primary h-2 rounded-full" style="width: 75%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span>工作温度范围</span>
+                                    <span class="font-medium">-20°C ~ 120°C</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-primary h-2 rounded-full" style="width: 85%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span>防护等级</span>
+                                    <span class="font-medium">IP65</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-primary h-2 rounded-full" style="width: 90%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 上传模型模态框 -->
+    <div id="upload-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold">上传3D模型</h3>
+                <button id="close-modal" class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                    <i class="fa fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="mb-4">
+                <p class="text-gray-600 mb-4">请选择支持的3D模型文件上传</p>
+                
+                <!-- 拖放区域 -->
+                <div id="drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-all-300">
+                    <i class="fa fa-cloud-upload text-4xl text-gray-400 mb-2"></i>
+                    <p class="text-gray-500 mb-2">拖拽文件到此处或点击选择文件</p>
+                    <p class="text-xs text-gray-400">支持 .gltf, .glb, .obj, .fbx, .stl, .3ds 格式</p>
+                    <input type="file" id="file-input" accept=".gltf,.glb,.obj,.fbx,.stl,.3ds,model/gltf+json,model/gltf-binary" class="hidden">
+                </div>
+                
+                <!-- 文件名显示 -->
+                <div id="file-name" class="mt-3 text-sm text-gray-600"></div>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button id="cancel-upload" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-all-300">
+                    取消
+                </button>
+                <button id="confirm-upload" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90 transition-all-300" disabled>
+                    确认上传
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载中遮罩 -->
+    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+            <p id="loading-text" class="text-white text-lg">加载模型中...</p>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="bg-secondary text-white py-8">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">关于我们</h3>
+                    <p class="text-gray-300 text-sm">
+                        专注于工业设备3D可视化解决方案，为制造业提供高质量的产品展示和技术交流平台。
+                    </p>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">联系方式</h3>
+                    <ul class="space-y-2 text-sm text-gray-300">
+                        <li class="flex items-center">
+                            <i class="fa fa-envelope-o mr-2"></i>
+                            <span>contact@gearbox3d.com</span>
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fa fa-phone mr-2"></i>
+                            <span>+86 123 4567 8910</span>
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fa fa-map-marker mr-2"></i>
+                            <span>上海市浦东新区张江高科技园区</span>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">关注我们</h3>
+                    <div class="flex space-x-4">
+                        <a href="#" class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center hover:bg-primary transition-all-300">
+                            <i class="fa fa-weixin text-white"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center hover:bg-primary transition-all-300">
+                            <i class="fa fa-weibo text-white"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center hover:bg-primary transition-all-300">
+                            <i class="fa fa-linkedin text-white"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center hover:bg-primary transition-all-300">
+                            <i class="fa fa-youtube-play text-white"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-gray-700 mt-8 pt-6 text-center text-sm text-gray-400">
+                <p>© 2026 工业齿轮箱3D可视化. 保留所有权利.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 移动端菜单切换
+        document.getElementById('mobile-menu-button').addEventListener('click', function() {
+            const mobileMenu = document.getElementById('mobile-menu');
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        // 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 80,
+                        behavior: 'smooth'
+                    });
+                    
+                    // 如果是移动端，点击后关闭菜单
+                    const mobileMenu = document.getElementById('mobile-menu');
+                    if (!mobileMenu.classList.contains('hidden')) {
+                        mobileMenu.classList.add('hidden');
+                    }
+                }
+            });
+        });
+
+        // Three.js 3D模型渲染
+        document.addEventListener('DOMContentLoaded', function() {
+            // 创建场景
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xF8FAFC);
+            
+            // 创建相机
+            const camera = new THREE.PerspectiveCamera(75, document.getElementById('canvas-container').offsetWidth / document.getElementById('canvas-container').offsetHeight, 0.1, 1000);
+            camera.position.z = 5;
+            
+            // 创建渲染器
+            const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gearbox-canvas'), antialias: true });
+            renderer.setSize(document.getElementById('canvas-container').offsetWidth, document.getElementById('canvas-container').offsetHeight);
+            renderer.shadowMap.enabled = true;
+            
+            // 添加灯光
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            const pointLight = new THREE.PointLight(0xffffff, 0.5);
+            pointLight.position.set(-5, 5, 5);
+            scene.add(pointLight);
+            
+            // 声明变量
+            let gearbox;
+            let mixer; // 动画混合器
+            let actions = {}; // 存储所有动画动作
+            let currentAction = null; // 当前播放的动画
+            
+            // 加载GLTF模型
+            const loadGearboxModel = () => {
+                // 创建GLTF加载器
+                const loader = new THREE.GLTFLoader();
+                
+                // 创建DRACO加载器（用于压缩模型）
+                const dracoLoader = new THREE.DRACOLoader();
+                dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/libs/draco/');
+                loader.setDRACOLoader(dracoLoader);
+                
+                // 显示加载中状态
+                const loadingOverlay = document.getElementById('loading-overlay');
+                const loadingText = document.getElementById('loading-text');
+                loadingOverlay.style.display = 'flex';
+                
+                // 加载模型
+                loader.load(
+                    // 使用免费可商用的齿轮箱模型
+                    'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf',
+                    // 加载成功回调
+                    (gltf) => {
+                        gearbox = gltf.scene;
+                        
+                        // 遍历模型设置阴影
+                        gearbox.traverse((child) => {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                                
+                                // 如果需要更改材质颜色
+                                if (child.material) {
+                                    // 可以在这里修改材质属性
+                                    // child.material.color.set(0xFF6B00);
+                                }
+                            }
+                        });
+                        
+                        // 调整模型大小和位置
+                        gearbox.scale.set(0.05, 0.05, 0.05); // 根据实际模型调整
+                        gearbox.position.set(0, 0, 0);
+                        gearbox.rotation.set(0, 0, 0);
+                        
+                        // 添加到场景
+                        scene.add(gearbox);
+                        
+                        // 检查是否有动画
+                        if (gltf.animations && gltf.animations.length > 0) {
+                            // 创建动画混合器
+                            mixer = new THREE.AnimationMixer(gearbox);
+                            
+                            // 遍历所有动画并创建动作
+                            gltf.animations.forEach((animation) => {
+                                const action = mixer.clipAction(animation);
+                                actions[animation.name] = action;
+                                
+                                // 如果是第一个动画，设置为当前动画
+                                if (!currentAction) {
+                                    currentAction = action;
+                                }
+                            });
+                            
+                            // 如果有动画，添加动画控制UI
+                            if (Object.keys(actions).length > 0) {
+                                createAnimationControls();
+                            }
+                        }
+                        
+                        // 隐藏加载界面
+                        loadingOverlay.style.display = 'none';
+                        
+                        // 自动调整相机位置以适应模型
+                        fitCameraToObject(camera, gearbox, controls);
+                    },
+                    // 加载进度回调
+                    (xhr) => {
+                        const progress = Math.round((xhr.loaded / xhr.total) * 100);
+                        loadingText.textContent = `加载模型中... ${progress}%`;
+                    },
+                    // 加载错误回调
+                    (error) => {
+                        console.error('加载模型时出错:', error);
+                        loadingText.textContent = '加载失败，请刷新页面重试';
+                        
+                        // 3秒后隐藏错误提示
+                        setTimeout(() => {
+                            loadingOverlay.style.display = 'none';
+                            
+                            // 创建一个简单的占位模型
+                            createPlaceholderModel();
+                        }, 3000);
+                    }
+                );
+            };
+            
+            // 创建占位模型（当GLTF模型加载失败时使用）
+            const createPlaceholderModel = () => {
+                const group = new THREE.Group();
+                
+                // 箱体
+                const bodyGeometry = new THREE.BoxGeometry(2, 1.2, 1.5);
+                const bodyMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0xFF6B00,
+                    shininess: 100,
+                    specular: 0x111111
+                });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                body.castShadow = true;
+                body.receiveShadow = true;
+                group.add(body);
+                
+                // 输入轴
+                const inputShaftGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1.5, 32);
+                const inputShaftMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0xCCCCCC,
+                    shininess: 150,
+                    specular: 0x333333
+                });
+                const inputShaft = new THREE.Mesh(inputShaftGeometry, inputShaftMaterial);
+                inputShaft.rotation.x = Math.PI / 2;
+                inputShaft.position.z = 0.75;
+                inputShaft.castShadow = true;
+                inputShaft.receiveShadow = true;
+                group.add(inputShaft);
+                
+                // 输出轴
+                const outputShaftGeometry = new THREE.CylinderGeometry(0.25, 0.25, 2, 32);
+                const outputShaft = new THREE.Mesh(outputShaftGeometry, inputShaftMaterial);
+                outputShaft.rotation.x = Math.PI / 2;
+                outputShaft.position.z = -1;
+                outputShaft.castShadow = true;
+                outputShaft.receiveShadow = true;
+                group.add(outputShaft);
+                
+                gearbox = group;
+                scene.add(gearbox);
+                
+                // 自动调整相机位置
+                fitCameraToObject(camera, gearbox, controls);
+            };
+            
+            // 创建动画控制UI
+            const createAnimationControls = () => {
+                const controlPanel = document.querySelector('.control-panel');
+                
+                // 创建动画控制区域
+                const animationSection = document.createElement('div');
+                animationSection.className = 'mt-6';
+                animationSection.innerHTML = `
+                    <h4 class="font-medium text-gray-700 mb-2">动画控制</h4>
+                    <div class="space-y-2" id="animation-controls">
+                        <p class="text-sm text-gray-500">未检测到动画</p>
+                    </div>
+                `;
+                
+                controlPanel.appendChild(animationSection);
+                
+                // 如果有动画，添加动画按钮
+                if (Object.keys(actions).length > 0) {
+                    const animationControls = document.getElementById('animation-controls');
+                    animationControls.innerHTML = '';
+                    
+                    // 添加播放/暂停按钮
+                    const playPauseBtn = document.createElement('button');
+                    playPauseBtn.className = 'w-full bg-primary text-white py-2 px-4 rounded-md mb-2 hover:bg-opacity-90 transition-all-300';
+                    playPauseBtn.innerHTML = '<i class="fa fa-play mr-2"></i>播放动画';
+                    playPauseBtn.addEventListener('click', toggleAnimation);
+                    animationControls.appendChild(playPauseBtn);
+                    
+                    // 添加动画选择下拉框
+                    if (Object.keys(actions).length > 1) {
+                        const animationSelect = document.createElement('select');
+                        animationSelect.className = 'w-full p-2 border rounded-md mb-2';
+                        animationSelect.id = 'animation-select';
+                        
+                        Object.keys(actions).forEach((name) => {
+                            const option = document.createElement('option');
+                            option.value = name;
+                            option.textContent = name;
+                            animationSelect.appendChild(option);
+                        });
+                        
+                        animationSelect.addEventListener('change', (e) => {
+                            const newAction = actions[e.target.value];
+                            if (newAction) {
+                                if (currentAction) {
+                                    currentAction.fadeOut(0.5);
+                                }
+                                newAction.reset();
+                                newAction.fadeIn(0.5);
+                                newAction.play();
+                                currentAction = newAction;
+                            }
+                        });
+                        
+                        animationControls.appendChild(animationSelect);
+                    }
+                }
+            };
+            
+            // 切换动画播放/暂停
+            const toggleAnimation = () => {
+                if (!currentAction) return;
+                
+                const playPauseBtn = document.querySelector('#animation-controls button');
+                
+                if (currentAction.isRunning()) {
+                    currentAction.pause();
+                    playPauseBtn.innerHTML = '<i class="fa fa-play mr-2"></i>播放动画';
+                } else {
+                    currentAction.play();
+                    playPauseBtn.innerHTML = '<i class="fa fa-pause mr-2"></i>暂停动画';
+                }
+            };
+            
+            // 自动调整相机位置以适应模型
+            const fitCameraToObject = (camera, object, controls, offset = 1.2) => {
+                const boundingBox = new THREE.Box3();
+                boundingBox.setFromObject(object);
+                
+                const center = boundingBox.getCenter(new THREE.Vector3());
+                const size = boundingBox.getSize(new THREE.Vector3());
+                
+                // 计算相机需要的距离
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const fov = camera.fov * (Math.PI / 180);
+                let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+                cameraZ *= offset; // 添加一些偏移量
+                
+                // 调整相机位置
+                camera.position.z = cameraZ;
+                
+                // 更新控制器目标
+                controls.target.copy(center);
+                controls.update();
+                
+                // 调整相机位置以从正面查看模型
+                camera.position.x = center.x;
+                camera.position.y = center.y;
+            };
+            
+            // 加载齿轮箱模型
+            loadGearboxModel();
+            
+            // 初始化模型上传功能
+            initModelUpload();
+            
+            // 初始化动画导出功能
+            initAnimationExport();
+            
+            // 添加轨道控制器
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.rotateSpeed = 0.5;
+            controls.enableZoom = true;
+            controls.zoomSpeed = 1;
+            controls.enablePan = true;
+            controls.panSpeed = 0.5;
+            
+            // 动画循环
+            let rotationSpeed = 0.005;
+            let autoRotate = true;
+            let clock = new THREE.Clock();
+            
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                // 更新动画混合器
+                if (mixer) {
+                    mixer.update(clock.getDelta());
+                }
+                
+                if (autoRotate && gearbox) {
+                    gearbox.rotation.y += rotationSpeed;
+                }
+                
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            
+            animate();
+            
+            // 窗口大小调整
+            window.addEventListener('resize', function() {
+                const width = document.getElementById('canvas-container').offsetWidth;
+                const height = document.getElementById('canvas-container').offsetHeight;
+                
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(width, height);
+            });
+            
+            // 控制元素事件监听
+            document.getElementById('rotation-speed').addEventListener('input', function(e) {
+                rotationSpeed = e.target.value * 0.001;
+            });
+            
+            document.getElementById('scale-control').addEventListener('input', function(e) {
+                if (!gearbox) return;
+                
+                const scale = e.target.value / 100;
+                gearbox.scale.set(scale, scale, scale);
+            });
+            
+            document.getElementById('ambient-light').addEventListener('input', function(e) {
+                ambientLight.intensity = e.target.value / 100;
+            });
+            
+            document.getElementById('reset-view').addEventListener('click', function() {
+                if (!gearbox) return;
+                
+                controls.reset();
+                gearbox.rotation.set(0, 0, 0);
+                gearbox.scale.set(1, 1, 1);
+                document.getElementById('scale-control').value = 100;
+                document.getElementById('rotation-speed').value = 5;
+                rotationSpeed = 0.005;
+                document.getElementById('ambient-light').value = 70;
+                ambientLight.intensity = 0.7;
+                
+                // 重置相机位置以适应模型
+                fitCameraToObject(camera, gearbox, controls);
+            });
+            
+            // 颜色按钮事件监听
+            document.querySelectorAll('.color-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    if (!gearbox) return;
+                    
+                    const color = new THREE.Color(this.getAttribute('data-color'));
+                    
+                    // 遍历模型中的所有网格并更改颜色
+                    gearbox.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            // 检查材质类型
+                            if (Array.isArray(child.material)) {
+                                // 如果是材质数组
+                                child.material.forEach(material => {
+                                    if (material.color) {
+                                        material.color.set(color);
+                                    }
+                                });
+                            } else {
+                                // 单个材质
+                                if (child.material.color) {
+                                    child.material.color.set(color);
+                                }
+                            }
+                        }
+                    });
+                });
+            });
+            
+            // 双击切换自动旋转
+            document.getElementById('gearbox-canvas').addEventListener('dblclick', function() {
+                autoRotate = !autoRotate;
+            });
+            
+            // 初始化模型上传功能
+            function initModelUpload() {
+                const uploadModal = document.getElementById('upload-modal');
+                const uploadBtn = document.getElementById('upload-model-btn');
+                const closeModalBtn = document.getElementById('close-modal');
+                const cancelUploadBtn = document.getElementById('cancel-upload');
+                const confirmUploadBtn = document.getElementById('confirm-upload');
+                const fileInput = document.getElementById('file-input');
+                const dropArea = document.getElementById('drop-area');
+                const fileNameDisplay = document.getElementById('file-name');
+                
+                let selectedFile = null;
+                
+                // 打开模态框
+                uploadBtn.addEventListener('click', () => {
+                    uploadModal.classList.remove('hidden');
+                });
+                
+                // 关闭模态框
+                closeModalBtn.addEventListener('click', () => {
+                    resetUploadModal();
+                });
+                
+                cancelUploadBtn.addEventListener('click', () => {
+                    resetUploadModal();
+                });
+                
+                // 文件选择处理
+                fileInput.addEventListener('change', (e) => {
+                    handleFileSelection(e.target.files[0]);
+                });
+                
+                // 点击拖放区域选择文件
+                dropArea.addEventListener('click', () => {
+                    fileInput.click();
+                });
+
+                // 拖放功能
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, preventDefaults, false);
+                });
+                
+                function preventDefaults(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, highlight, false);
+                });
+                
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropArea.addEventListener(eventName, unhighlight, false);
+                });
+                
+                function highlight() {
+                    dropArea.classList.add('border-primary');
+                    dropArea.classList.add('bg-primary bg-opacity-5');
+                }
+                
+                function unhighlight() {
+                    dropArea.classList.remove('border-primary');
+                    dropArea.classList.remove('bg-primary bg-opacity-5');
+                }
+                
+                dropArea.addEventListener('drop', handleDrop, false);
+                
+                function handleDrop(e) {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+                    
+                    if (files.length > 0) {
+                        handleFileSelection(files[0]);
+                    }
+                }
+                
+                // 处理文件选择
+                function handleFileSelection(file) {
+                    if (!file) return;
+                    
+                    // 检查文件类型
+                    const supportedFormats = ['.gltf', '.glb', '.obj', '.fbx', '.stl', '.3ds'];
+                    const fileExtension = file.name.toLowerCase().substr(file.name.lastIndexOf('.'));
+                    
+                    if (supportedFormats.includes(fileExtension) || 
+                        file.type === 'model/gltf-binary' || 
+                        file.type === 'model/gltf+json') {
+                        selectedFile = file;
+                        fileNameDisplay.textContent = `已选择: ${file.name}`;
+                        confirmUploadBtn.disabled = false;
+                    } else {
+                        alert('请选择支持的3D模型文件格式：GLTF、GLB、OBJ、FBX、STL、3DS');
+                        resetUploadModal();
+                    }
+                }
+                
+                // 确认上传
+                confirmUploadBtn.addEventListener('click', () => {
+                    if (selectedFile) {
+                        uploadModal.classList.add('hidden');
+                        loadUploadedModel(selectedFile);
+                    }
+                });
+                
+                // 重置上传模态框
+                function resetUploadModal() {
+                    uploadModal.classList.add('hidden');
+                    selectedFile = null;
+                    fileInput.value = '';
+                    fileNameDisplay.textContent = '';
+                    confirmUploadBtn.disabled = true;
+                    unhighlight();
+                }
+            }
+            
+            // 加载上传的模型
+            function loadUploadedModel(file) {
+                // 显示加载中状态
+                const loadingOverlay = document.getElementById('loading-overlay');
+                const loadingText = document.getElementById('loading-text');
+                loadingOverlay.style.display = 'flex';
+                loadingText.textContent = `加载模型中... 0%`;
+                
+                // 创建文件URL
+                const fileURL = URL.createObjectURL(file);
+                const fileExtension = file.name.toLowerCase().substr(file.name.lastIndexOf('.'));
+                
+                // 移除旧模型
+                if (gearbox) {
+                    scene.remove(gearbox);
+                }
+                
+                // 清理之前的动画资源
+                if (mixer) {
+                    mixer.stopAllAction();
+                    mixer = null;
+                }
+                actions = {};
+                currentAction = null;
+                
+                // 移除之前添加的动画控制UI
+                const existingAnimationControls = document.getElementById('animation-controls');
+                if (existingAnimationControls && existingAnimationControls.parentElement) {
+                    existingAnimationControls.parentElement.parentElement.remove();
+                }
+                
+                // 根据文件格式选择合适的加载器
+                let loader;
+                
+                switch (fileExtension) {
+                    case '.gltf':
+                    case '.glb':
+                        loader = new THREE.GLTFLoader();
+                        // 创建DRACO加载器（用于压缩模型）
+                        const dracoLoader = new THREE.DRACOLoader();
+                        dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.140.1/examples/js/libs/draco/');
+                        loader.setDRACOLoader(dracoLoader);
+                        
+                        loader.load(
+                            fileURL,
+                            (gltf) => {
+                                gearbox = gltf.scene;
+                                
+                                // 遍历模型设置阴影
+                                gearbox.traverse((child) => {
+                                    if (child.isMesh) {
+                                        child.castShadow = true;
+                                        child.receiveShadow = true;
+                                    }
+                                });
+                                
+                                // 添加到场景
+                                scene.add(gearbox);
+                                
+                                // 检查是否有动画
+                                if (gltf.animations && gltf.animations.length > 0) {
+                                    // 创建动画混合器
+                                    mixer = new THREE.AnimationMixer(gearbox);
+                                    
+                                    // 遍历所有动画并创建动作
+                                    gltf.animations.forEach((animation) => {
+                                        const action = mixer.clipAction(animation);
+                                        actions[animation.name] = action;
+                                        
+                                        // 如果是第一个动画，设置为当前动画
+                                        if (!currentAction) {
+                                            currentAction = action;
+                                        }
+                                    });
+                                    
+                                    // 如果有动画，添加动画控制UI
+                                    if (Object.keys(actions).length > 0) {
+                                        createAnimationControls();
+                                    }
+                                }
+                                
+                                // 隐藏加载界面
+                                loadingOverlay.style.display = 'none';
+                                
+                                // 自动调整相机位置以适应模型
+                                fitCameraToObject(camera, gearbox, controls);
+                                
+                                // 释放文件URL
+                                URL.revokeObjectURL(fileURL);
+                            },
+                            (xhr) => {
+                                const progress = Math.round((xhr.loaded / xhr.total) * 100);
+                                loadingText.textContent = `加载模型中... ${progress}%`;
+                            },
+                            (error) => {
+                                handleLoadError(error, fileURL);
+                            }
+                        );
+                        break;
+                        
+                    case '.obj':
+                        loader = new THREE.OBJLoader();
+                        loader.load(
+                            fileURL,
+                            (object) => {
+                                gearbox = object;
+                                
+                                // 遍历模型设置阴影和材质
+                                gearbox.traverse((child) => {
+                                    if (child.isMesh) {
+                                        child.castShadow = true;
+                                        child.receiveShadow = true;
+                                        
+                                        // 如果没有材质，添加默认材质
+                                        if (!child.material) {
+                                            child.material = new THREE.MeshPhongMaterial({ 
+                                                color: 0xFF6B00,
+                                                shininess: 100
+                                            });
+                                        }
+                                    }
+                                });
+                                
+                                // 添加到场景
+                                scene.add(gearbox);
+                                
+                                // 隐藏加载界面
+                                loadingOverlay.style.display = 'none';
+                                
+                                // 自动调整相机位置以适应模型
+                                fitCameraToObject(camera, gearbox, controls);
+                                
+                                // 释放文件URL
+                                URL.revokeObjectURL(fileURL);
+                            },
+                            (xhr) => {
+                                const progress = Math.round((xhr.loaded / xhr.total) * 100);
+                                loadingText.textContent = `加载模型中... ${progress}%`;
+                            },
+                            (error) => {
+                                handleLoadError(error, fileURL);
+                            }
+                        );
+                        break;
+                        
+                    case '.fbx':
+                        loader = new THREE.FBXLoader();
+                        loader.load(
+                            fileURL,
+                            (object) => {
+                                gearbox = object;
+                                
+                                // 遍历模型设置阴影
+                                gearbox.traverse((child) => {
+                                    if (child.isMesh) {
+                                        child.castShadow = true;
+                                        child.receiveShadow = true;
+                                    }
+                                });
+                                
+                                // 添加到场景
+                                scene.add(gearbox);
+                                
+                                // 检查是否有动画
+                                if (object.animations && object.animations.length > 0) {
+                                    // 创建动画混合器
+                                    mixer = new THREE.AnimationMixer(gearbox);
+                                    
+                                    // 遍历所有动画并创建动作
+                                    object.animations.forEach((animation) => {
+                                        const action = mixer.clipAction(animation);
+                                        actions[animation.name] = action;
+                                        
+                                        // 如果是第一个动画，设置为当前动画
+                                        if (!currentAction) {
+                                            currentAction = action;
+                                        }
+                                    });
+                                    
+                                    // 如果有动画，添加动画控制UI
+                                    if (Object.keys(actions).length > 0) {
+                                        createAnimationControls();
+                                    }
+                                }
+                                
+                                // 隐藏加载界面
+                                loadingOverlay.style.display = 'none';
+                                
+                                // 自动调整相机位置以适应模型
+                                fitCameraToObject(camera, gearbox, controls);
+                                
+                                // 释放文件URL
+                                URL.revokeObjectURL(fileURL);
+                            },
+                            (xhr) => {
+                                const progress = Math.round((xhr.loaded / xhr.total) * 100);
+                                loadingText.textContent = `加载模型中... ${progress}%`;
+                            },
+                            (error) => {
+                                handleLoadError(error, fileURL);
+                            }
+                        );
+                        break;
+                        
+                    case '.stl':
+                        loader = new THREE.STLLoader();
+                        loader.load(
+                            fileURL,
+                            (geometry) => {
+                                // 创建材质
+                                const material = new THREE.MeshPhongMaterial({ 
+                                    color: 0xFF6B00,
+                                    shininess: 100
+                                });
+                                
+                                // 创建网格
+                                const mesh = new THREE.Mesh(geometry, material);
+                                mesh.castShadow = true;
+                                mesh.receiveShadow = true;
+                                
+                                // 创建组并添加网格
+                                gearbox = new THREE.Group();
+                                gearbox.add(mesh);
+                                
+                                // 添加到场景
+                                scene.add(gearbox);
+                                
+                                // 隐藏加载界面
+                                loadingOverlay.style.display = 'none';
+                                
+                                // 自动调整相机位置以适应模型
+                                fitCameraToObject(camera, gearbox, controls);
+                                
+                                // 释放文件URL
+                                URL.revokeObjectURL(fileURL);
+                            },
+                            (xhr) => {
+                                const progress = Math.round((xhr.loaded / xhr.total) * 100);
+                                loadingText.textContent = `加载模型中... ${progress}%`;
+                            },
+                            (error) => {
+                                handleLoadError(error, fileURL);
+                            }
+                        );
+                        break;
+                        
+                    case '.3ds':
+                        loader = new THREE.TDSLoader();
+                        loader.load(
+                            fileURL,
+                            (object) => {
+                                gearbox = object;
+                                
+                                // 遍历模型设置阴影
+                                gearbox.traverse((child) => {
+                                    if (child.isMesh) {
+                                        child.castShadow = true;
+                                        child.receiveShadow = true;
+                                    }
+                                });
+                                
+                                // 添加到场景
+                                scene.add(gearbox);
+                                
+                                // 隐藏加载界面
+                                loadingOverlay.style.display = 'none';
+                                
+                                // 自动调整相机位置以适应模型
+                                fitCameraToObject(camera, gearbox, controls);
+                                
+                                // 释放文件URL
+                                URL.revokeObjectURL(fileURL);
+                            },
+                            (xhr) => {
+                                const progress = Math.round((xhr.loaded / xhr.total) * 100);
+                                loadingText.textContent = `加载模型中... ${progress}%`;
+                            },
+                            (error) => {
+                                handleLoadError(error, fileURL);
+                            }
+                        );
+                        break;
+                        
+                    default:
+                        alert('不支持的文件格式');
+                        loadingOverlay.style.display = 'none';
+                        URL.revokeObjectURL(fileURL);
+                        break;
+                }
+            }
+            
+            // 处理加载错误
+            function handleLoadError(error, fileURL) {
+                console.error('加载模型时出错:', error);
+                const loadingText = document.getElementById('loading-text');
+                loadingText.textContent = '加载失败，请检查文件格式是否正确';
+                
+                // 3秒后隐藏错误提示
+                setTimeout(() => {
+                    document.getElementById('loading-overlay').style.display = 'none';
+                }, 3000);
+                
+                // 释放文件URL
+                URL.revokeObjectURL(fileURL);
+            }
+            
+            // 初始化动画导出功能
+            function initAnimationExport() {
+                const exportBtn = document.getElementById('export-animation-btn');
+                
+                exportBtn.addEventListener('click', () => {
+                    if (!gearbox) {
+                        alert('请先加载3D模型');
+                        return;
+                    }
+                    
+                    // 显示导出选项模态框
+                    showExportOptions();
+                });
+            }
+            
+            // 显示导出选项模态框
+            function showExportOptions() {
+                // 创建模态框
+                const modal = document.createElement('div');
+                modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                modal.id = 'export-modal';
+                
+                modal.innerHTML = `
+                    <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold">导出动画</h3>
+                            <button id="close-export-modal" class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                                <i class="fa fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        <div class="mb-4">
+                            <p class="text-gray-600 mb-4">请选择导出格式和设置</p>
+                            
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium mb-2">导出格式</label>
+                                <select id="export-format" class="w-full p-2 border border-gray-300 rounded-md">
+                                    <option value="gif">GIF动画</option>
+                                    <option value="mp4">MP4视频</option>
+                                    <option value="images">PNG图片序列</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium mb-2">分辨率</label>
+                                <select id="export-resolution" class="w-full p-2 border border-gray-300 rounded-md">
+                                    <option value="640x480">640 × 480</option>
+                                    <option value="800x600">800 × 600</option>
+                                    <option value="1280x720" selected>1280 × 720</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium mb-2">帧率</label>
+                                <select id="export-fps" class="w-full p-2 border border-gray-300 rounded-md">
+                                    <option value="15">15 FPS</option>
+                                    <option value="24" selected>24 FPS</option>
+                                    <option value="30">30 FPS</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium mb-2">旋转速度</label>
+                                <select id="export-speed" class="w-full p-2 border border-gray-300 rounded-md">
+                                    <option value="slow">慢速</option>
+                                    <option value="normal" selected>正常</option>
+                                    <option value="fast">快速</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-3">
+                            <button id="cancel-export" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-all-300">
+                                取消
+                            </button>
+                            <button id="confirm-export" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-opacity-90 transition-all-300">
+                                开始导出
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // 绑定事件
+                document.getElementById('close-export-modal').addEventListener('click', () => {
+                    document.body.removeChild(modal);
+                });
+                
+                document.getElementById('cancel-export').addEventListener('click', () => {
+                    document.body.removeChild(modal);
+                });
+                
+                document.getElementById('confirm-export').addEventListener('click', () => {
+                    const format = document.getElementById('export-format').value;
+                    const resolution = document.getElementById('export-resolution').value;
+                    const fps = parseInt(document.getElementById('export-fps').value);
+                    const speed = document.getElementById('export-speed').value;
+                    
+                    document.body.removeChild(modal);
+                    
+                    // 开始导出
+                    exportAnimation(format, resolution, fps, speed);
+                });
+            }
+            
+            // 导出动画
+            function exportAnimation(format, resolution, fps, speed) {
+                // 显示导出进度
+                const loadingOverlay = document.getElementById('loading-overlay');
+                const loadingText = document.getElementById('loading-text');
+                loadingOverlay.style.display = 'flex';
+                loadingText.textContent = '准备导出动画...';
+                
+                // 解析分辨率
+                const [width, height] = resolution.split('x').map(Number);
+                
+                // 计算旋转速度
+                let rotationSpeed;
+                switch (speed) {
+                    case 'slow':
+                        rotationSpeed = 0.01;
+                        break;
+                    case 'fast':
+                        rotationSpeed = 0.03;
+                        break;
+                    default:
+                        rotationSpeed = 0.02;
+                }
+                
+                // 计算总帧数（旋转一周）
+                const totalFrames = Math.ceil((Math.PI * 2) / rotationSpeed);
+                
+                // 创建临时渲染器
+                const tempRenderer = new THREE.WebGLRenderer({ 
+                    preserveDrawingBuffer: true,
+                    antialias: true
+                });
+                tempRenderer.setSize(width, height);
+                tempRenderer.shadowMap.enabled = true;
+                
+                // 创建临时相机
+                const tempCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+                tempCamera.position.copy(camera.position);
+                tempCamera.lookAt(controls.target);
+                
+                // 创建临时场景
+                const tempScene = new THREE.Scene();
+                tempScene.background = new THREE.Color(0xF8FAFC);
+                
+                // 添加灯光
+                const tempAmbientLight = new THREE.AmbientLight(0xffffff, 0.7);
+                tempScene.add(tempAmbientLight);
+                
+                const tempDirectionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                tempDirectionalLight.position.set(5, 5, 5);
+                tempDirectionalLight.castShadow = true;
+                tempScene.add(tempDirectionalLight);
+                
+                const tempPointLight = new THREE.PointLight(0xffffff, 0.5);
+                tempPointLight.position.set(-5, 5, 5);
+                tempScene.add(tempPointLight);
+                
+                // 克隆模型
+                let clonedGearbox;
+                if (gearbox) {
+                    clonedGearbox = gearbox.clone();
+                    tempScene.add(clonedGearbox);
+                }
+                
+                // 调整相机位置
+                fitCameraToObject(tempCamera, clonedGearbox, null);
+                
+                // 存储截图
+                const screenshots = [];
+                let currentFrame = 0;
+                
+                // 开始渲染
+                function renderFrame() {
+                    if (currentFrame >= totalFrames) {
+                        // 所有帧渲染完成，开始导出
+                        completeExport();
+                        return;
+                    }
+                    
+                    // 更新进度
+                    const progress = Math.round((currentFrame / totalFrames) * 100);
+                    loadingText.textContent = `渲染中... ${progress}%`;
+                    
+                    // 旋转模型
+                    if (clonedGearbox) {
+                        clonedGearbox.rotation.y += rotationSpeed;
+                    }
+                    
+                    // 渲染场景
+                    tempRenderer.render(tempScene, tempCamera);
+                    
+                    // 获取截图
+                    const dataURL = tempRenderer.domElement.toDataURL('image/png');
+                    screenshots.push(dataURL);
+                    
+                    currentFrame++;
+                    
+                    // 继续渲染下一帧
+                    requestAnimationFrame(renderFrame);
+                }
+                
+                // 完成导出
+                function completeExport() {
+                    loadingText.textContent = '处理导出文件...';
+                    
+                    if (format === 'images') {
+                        // 导出PNG图片序列
+                        exportPNGSequence(screenshots);
+                    } else if (format === 'gif') {
+                        // 导出GIF
+                        exportGIF(screenshots, fps);
+                    } else if (format === 'mp4') {
+                        // 导出MP4（使用ffmpeg.wasm，如果可用）
+                        exportMP4(screenshots, fps, width, height);
+                    }
+                    
+                    // 清理临时资源
+                    tempRenderer.dispose();
+                }
+                
+                // 开始渲染第一帧
+                renderFrame();
+            }
+            
+            // 导出PNG图片序列
+            function exportPNGSequence(screenshots) {
+                // 创建ZIP文件（使用JSZip库，如果可用）
+                if (typeof JSZip !== 'undefined') {
+                    const zip = new JSZip();
+                    const img = zip.folder('images');
+                    
+                    screenshots.forEach((dataURL, index) => {
+                        const filename = `frame_${String(index).padStart(4, '0')}.png`;
+                        const base64 = dataURL.split(',')[1];
+                        img.file(filename, base64, { base64: true });
+                    });
+                    
+                    zip.generateAsync({ type: 'blob' }).then((content) => {
+                        // 创建下载链接
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(content);
+                        link.download = 'gearbox_animation.zip';
+                        link.click();
+                        
+                        // 隐藏加载界面
+                        document.getElementById('loading-overlay').style.display = 'none';
+                    });
+                } else {
+                    // 如果JSZip不可用，逐个下载图片
+                    screenshots.forEach((dataURL, index) => {
+                        const link = document.createElement('a');
+                        link.href = dataURL;
+                        link.download = `gearbox_frame_${String(index).padStart(4, '0')}.png`;
+                        link.click();
+                    });
+                    
+                    // 隐藏加载界面
+                    document.getElementById('loading-overlay').style.display = 'none';
+                }
+            }
+            
+            // 导出GIF
+            function exportGIF(screenshots, fps) {
+                // 使用gif.js库（如果可用）
+                if (typeof GIF !== 'undefined') {
+                    const gif = new GIF({
+                        workers: 2,
+                        quality: 10,
+                        width: screenshots[0].width,
+                        height: screenshots[0].height,
+                        workerScript: 'https://cdn.jsdelivr.net/npm/gif.js/dist/gif.worker.js'
+                    });
+                    
+                    // 添加帧
+                    screenshots.forEach((dataURL) => {
+                        gif.addFrame(dataURL, { delay: 1000 / fps });
+                    });
+                    
+                    // 渲染GIF
+                    gif.render();
+                    
+                    // 导出GIF
+                    gif.on('finished', (blob) => {
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = 'gearbox_animation.gif';
+                        link.click();
+                        
+                        // 隐藏加载界面
+                        document.getElementById('loading-overlay').style.display = 'none';
+                    });
+                } else {
+                    // 如果gif.js不可用，提供替代方案
+                    alert('GIF导出需要额外的库支持。请选择其他导出格式或下载图片序列手动制作GIF。');
+                    
+                    // 导出PNG序列作为替代
+                    exportPNGSequence(screenshots);
+                }
+            }
+            
+            // 导出MP4
+            function exportMP4(screenshots, fps, width, height) {
+                // 检查ffmpeg.wasm是否可用
+                if (typeof createFFmpeg !== 'undefined') {
+                    const { createFFmpeg, fetchFile } = FFmpeg;
+                    const ffmpeg = createFFmpeg({ log: true });
+                    
+                    (async () => {
+                        try {
+                            loadingText.textContent = '初始化FFmpeg...';
+                            await ffmpeg.load();
+                            
+                            // 写入帧到FFmpeg
+                            for (let i = 0; i < screenshots.length; i++) {
+                                const progress = Math.round((i / screenshots.length) * 50) + 50; // 50%是渲染，50%是编码
+                                loadingText.textContent = `编码视频... ${progress}%`;
+                                
+                                const base64 = screenshots[i].split(',')[1];
+                                const binary = atob(base64);
+                                const arrayBuffer = new ArrayBuffer(binary.length);
+                                const uint8Array = new Uint8Array(arrayBuffer);
+                                
+                                for (let j = 0; j < binary.length; j++) {
+                                    uint8Array[j] = binary.charCodeAt(j);
+                                }
+                                
+                                ffmpeg.FS('writeFile', `frame_${String(i).padStart(4, '0')}.png`, uint8Array);
+                            }
+                            
+                            // 使用FFmpeg编码MP4
+                            loadingText.textContent = '编码视频... 95%';
+                            await ffmpeg.run(
+                                '-framerate', fps.toString(),
+                                '-i', 'frame_%04d.png',
+                                '-c:v', 'libx264',
+                                '-pix_fmt', 'yuv420p',
+                                'output.mp4'
+                            );
+                            
+                            // 读取输出文件
+                            const data = ffmpeg.FS('readFile', 'output.mp4');
+                            const blob = new Blob([data.buffer], { type: 'video/mp4' });
+                            
+                            // 创建下载链接
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(blob);
+                            link.download = 'gearbox_animation.mp4';
+                            link.click();
+                            
+                            // 隐藏加载界面
+                            document.getElementById('loading-overlay').style.display = 'none';
+                        } catch (error) {
+                            console.error('MP4导出失败:', error);
+                            alert('MP4导出失败，请尝试其他格式');
+                            
+                            // 导出PNG序列作为替代
+                            exportPNGSequence(screenshots);
+                        }
+                    })();
+                } else {
+                    // 如果ffmpeg.wasm不可用，提供替代方案
+                    alert('MP4导出需要FFmpeg支持。请选择其他导出格式或下载图片序列手动制作视频。');
+                    
+                    // 导出PNG序列作为替代
+                    exportPNGSequence(screenshots);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
