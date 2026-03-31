@@ -20,666 +20,824 @@
       theme: {
         extend: {
           colors: {
-            primary: '#f97316',
-            secondary: '#1e293b',
-            light: '#f8fafc'
+            primary: '#FF6B00',
+            secondary: '#1E293B',
+            dark: '#0F172A',
+            light: '#F8FAFC'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif']
           }
         }
       }
     };
   </script>
 
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .text-shadow {
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      .transition-all-300 {
+        transition: all 300ms ease-in-out;
+      }
+    }
+  </style>
+
   <style>
     body { overflow-x: hidden; }
     .canvas-container {
       position: relative;
       width: 100%;
-      height: 68vh;
-      min-height: 460px;
-      background: linear-gradient(180deg, #f3f4f6 0%, #eef2f7 100%);
+      height: 600px;
+      background-color: #F8FAFC;
       overflow: hidden;
     }
-    #viewer-canvas {
+    #gearbox-canvas {
+      position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
       display: block;
     }
-    .panel {
-      background: rgba(255,255,255,0.96);
+    .control-panel {
+      background-color: rgba(255,255,255,0.95);
       backdrop-filter: blur(10px);
     }
     .btn {
       transition: all .2s ease;
     }
     .btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 20px rgba(0,0,0,.08);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06);
     }
-    .color-swatch.active {
-      outline: 3px solid #111827;
-      outline-offset: 2px;
+    .btn:active {
+      transform: translateY(0);
+    }
+    .color-btn.active {
+      border-color: #111827 !important;
+      box-shadow: 0 0 0 2px rgba(17,24,39,.2);
     }
   </style>
 </head>
-<body class="bg-light text-slate-800">
+<body class="bg-light text-secondary">
 
-  <nav class="bg-white border-b border-slate-200 shadow-sm">
-    <div class="container mx-auto px-4 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <i class="fa fa-cube text-primary text-2xl"></i>
-        <div>
-          <div class="text-lg font-bold">工业3D模型展示</div>
-          <div class="text-xs text-slate-500">GLB / GLTF / OBJ / STL Viewer</div>
-        </div>
+  <nav class="bg-white shadow-md">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <i class="fa fa-cogs text-primary text-2xl"></i>
+        <span class="text-xl font-bold">工业3D模型展示</span>
       </div>
-      <a href="#controls" class="text-sm hover:text-primary transition">控制面板</a>
+      <div class="hidden md:flex space-x-6">
+        <a href="#controls" class="hover:text-primary transition-all-300">控制面板</a>
+      </div>
     </div>
   </nav>
 
   <main class="container mx-auto px-4 py-8">
-    <section class="mb-8">
-      <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div class="p-4 bg-secondary text-white flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <h1 class="text-xl font-semibold">3D模型预览</h1>
-          <div class="flex flex-wrap gap-2">
-            <button id="reset-view" class="btn px-4 py-2 rounded-lg bg-primary text-white">
+    <section class="mb-12">
+      <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="p-4 bg-secondary text-white flex justify-between items-center">
+          <h2 class="text-xl font-semibold">3D模型查看器</h2>
+          <div class="flex space-x-2">
+            <button class="bg-primary hover:bg-opacity-90 text-white px-3 py-1 rounded-md btn" id="reset-view">
               <i class="fa fa-refresh mr-1"></i>重置视图
             </button>
-            <button id="toggle-rotate" class="btn px-4 py-2 rounded-lg bg-slate-600 text-white">
+            <button class="bg-secondary hover:bg-opacity-90 text-white px-3 py-1 rounded-md btn" id="toggle-rotate">
               <i class="fa fa-repeat mr-1"></i>暂停旋转
             </button>
-            <button id="upload-btn" class="btn px-4 py-2 rounded-lg bg-emerald-600 text-white">
+            <button class="bg-green-600 hover:bg-opacity-90 text-white px-3 py-1 rounded-md btn" id="upload-model-btn">
               <i class="fa fa-upload mr-1"></i>上传模型
             </button>
           </div>
         </div>
-
-        <div class="canvas-container">
-          <canvas id="viewer-canvas"></canvas>
+        <div id="canvas-container" class="rounded-b-xl canvas-container">
+          <canvas id="gearbox-canvas"></canvas>
         </div>
       </div>
     </section>
 
-    <section id="controls" class="max-w-5xl mx-auto">
-      <div class="panel rounded-2xl shadow-lg p-6">
-        <h2 class="text-lg font-semibold mb-6 flex items-center">
-          <i class="fa fa-sliders text-primary mr-2"></i>控制面板
-        </h2>
+    <section id="controls" class="mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-1">
+        <div class="bg-white rounded-xl shadow-lg p-6 control-panel">
+          <h3 class="text-lg font-semibold mb-4 flex items-center">
+            <i class="fa fa-sliders text-primary mr-2"></i>控制面板
+          </h3>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div>
-            <label class="block text-sm font-medium mb-2">旋转速度</label>
-            <input id="rotation-speed" type="range" min="0" max="10" value="5" class="w-full" />
-            <div class="flex justify-between text-xs text-slate-500 mt-1">
-              <span>慢</span>
-              <span>快</span>
+          <div class="space-y-6">
+            <div>
+              <label class="block text-sm font-medium mb-2">旋转速度</label>
+              <input type="range" min="0" max="10" value="5" class="w-full" id="rotation-speed">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>慢</span>
+                <span>快</span>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label class="block text-sm font-medium mb-2">环境光照</label>
-            <input id="ambient-light" type="range" min="70" max="180" value="120" class="w-full" />
-            <div class="flex justify-between text-xs text-slate-500 mt-1">
-              <span>暗</span>
-              <span>亮</span>
+            <div>
+              <label class="block text-sm font-medium mb-2">缩放比例</label>
+              <input type="range" min="50" max="150" value="100" class="w-full" id="scale-control">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>小</span>
+                <span>大</span>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label class="block text-sm font-medium mb-2">缩放比例</label>
-            <input id="scale-control" type="range" min="50" max="150" value="100" class="w-full" />
-            <div class="flex justify-between text-xs text-slate-500 mt-1">
-              <span>小</span>
-              <span>大</span>
+            <div>
+              <label class="block text-sm font-medium mb-2">模型颜色</label>
+              <div class="grid grid-cols-3 gap-2">
+                <button class="w-full h-10 rounded-md border-2 border-transparent hover:border-gray-400 transition-all-300 color-btn active" data-color="#9aa0a6" style="background:#9aa0a6" title="工业灰"></button>
+                <button class="w-full h-10 rounded-md border-2 border-transparent hover:border-gray-400 transition-all-300 color-btn" data-color="#7c8aa0" style="background:#7c8aa0" title="蓝灰"></button>
+                <button class="w-full h-10 rounded-md border-2 border-transparent hover:border-gray-400 transition-all-300 color-btn" data-color="#f97316" style="background:#f97316" title="橙色强调"></button>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label class="block text-sm font-medium mb-3">模型颜色</label>
-            <div class="grid grid-cols-3 gap-3">
-              <button class="color-swatch active h-12 rounded-lg border border-slate-200" data-color="#9aa0a6" title="工业灰" style="background:#9aa0a6"></button>
-              <button class="color-swatch h-12 rounded-lg border border-slate-200" data-color="#7c8aa0" title="蓝灰" style="background:#7c8aa0"></button>
-              <button class="color-swatch h-12 rounded-lg border border-slate-200" data-color="#f97316" title="橙色强调" style="background:#f97316"></button>
-            </div>
-            <div class="flex justify-between text-xs text-slate-500 mt-2">
-              <span>工业灰</span>
-              <span>蓝灰</span>
-              <span>橙色强调</span>
+            <div>
+              <label class="block text-sm font-medium mb-2">环境光照</label>
+              <input type="range" min="40" max="140" value="75" class="w-full" id="ambient-light">
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>暗</span>
+                <span>亮</span>
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="mt-6 text-sm text-slate-600 leading-7">
-          <p>鼠标左键拖动旋转，滚轮缩放，右键平移。</p>
-          <p>这版会保留更多工业件细节层次，同时增强 OBJ 的自动适配能力。</p>
+      <div class="lg:col-span-2">
+        <div class="bg-white rounded-xl shadow-lg p-6 control-panel h-full">
+          <h3 class="text-lg font-semibold mb-4 flex items-center">
+            <i class="fa fa-info-circle text-primary mr-2"></i>显示说明
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-600">
+            <div>
+              <h4 class="font-medium text-gray-700 mb-2">操作方式</h4>
+              <ul class="space-y-2">
+                <li>左键拖动：旋转模型</li>
+                <li>滚轮：缩放视图</li>
+                <li>右键拖动：平移视图</li>
+                <li>颜色按钮：切换主色</li>
+              </ul>
+            </div>
+            <div>
+              <h4 class="font-medium text-gray-700 mb-2">当前优化</h4>
+              <ul class="space-y-2">
+                <li>优先保留 GLB 原始材质观感</li>
+                <li>仅对异常材质做适度纠偏</li>
+                <li>增强主光、补光和边缘高光</li>
+                <li>OBJ / STL 自动居中与相机适配</li>
+              </ul>
+            </div>
+          </div>
+          <div class="mt-6 text-sm text-gray-600 leading-relaxed">
+            这版不再把所有模型强行替换成统一“工业涂层材质”，而是尽量接近你第一次页面那种更厚实、更有体积感的显示效果。
+          </div>
         </div>
       </div>
     </section>
   </main>
 
-  <input id="file-input" type="file" accept=".gltf,.glb,.obj,.stl,model/gltf+json,model/gltf-binary" class="hidden" />
+  <div id="upload-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold">上传3D模型</h3>
+        <button id="close-modal" class="text-gray-500 hover:text-gray-700 focus:outline-none">
+          <i class="fa fa-times text-xl"></i>
+        </button>
+      </div>
 
-  <div id="loading-overlay" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+      <div class="mb-4">
+        <p class="text-gray-600 mb-4">请选择或拖放模型文件，支持 GLTF / GLB / OBJ / STL。</p>
+        <div id="drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-all-300">
+          <i class="fa fa-cloud-upload text-4xl text-gray-400 mb-2"></i>
+          <p class="text-gray-500 mb-2">点击选择文件或拖放到这里</p>
+          <p class="text-xs text-gray-400">.gltf, .glb, .obj, .stl</p>
+          <input type="file" id="file-input" accept=".gltf,.glb,.obj,.stl,model/gltf+json,model/gltf-binary" class="hidden">
+        </div>
+        <div id="file-name" class="mt-3 text-sm text-gray-600"></div>
+      </div>
+
+      <div class="flex justify-end space-x-3">
+        <button id="cancel-upload" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-all-300">取消</button>
+        <button id="confirm-upload" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-90 transition-all-300" disabled>上传</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
     <div class="text-center">
-      <div class="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
       <p id="loading-text" class="text-white text-lg">加载中...</p>
     </div>
   </div>
 
-  <footer class="mt-12 py-8 text-center text-sm text-slate-500">
-    <p>2026 工业3D模型展示页面</p>
-  </footer>
-
   <script>
-    const DEFAULT_COLOR = '#9aa0a6';
+    document.addEventListener('DOMContentLoaded', function () {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xF8FAFC);
+      scene.fog = new THREE.Fog(0xF8FAFC, 18, 42);
 
-    const canvas = document.getElementById('viewer-canvas');
-    const container = canvas.parentElement;
-    const fileInput = document.getElementById('file-input');
-    const loadingOverlay = document.getElementById('loading-overlay');
-    const loadingText = document.getElementById('loading-text');
+      const canvasContainer = document.getElementById('canvas-container');
+      const camera = new THREE.PerspectiveCamera(
+        48,
+        canvasContainer.offsetWidth / canvasContainer.offsetHeight,
+        0.01,
+        5000
+      );
+      camera.position.set(4.8, 2.8, 6.6);
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf3f4f6);
-    scene.fog = new THREE.Fog(0xf3f4f6, 28, 70);
-
-    const camera = new THREE.PerspectiveCamera(
-      48,
-      container.clientWidth / container.clientHeight,
-      0.01,
-      5000
-    );
-    camera.position.set(6, 4, 10);
-
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true,
-      alpha: false
-    });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
-
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.enablePan = true;
-    controls.minDistance = 0.2;
-    controls.maxDistance = 2000;
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.05);
-    scene.add(ambientLight);
-
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xdfe6ee, 1.0);
-    scene.add(hemiLight);
-
-    const mainLight = new THREE.DirectionalLight(0xffffff, 1.6);
-    mainLight.position.set(10, 16, 12);
-    mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 2048;
-    mainLight.shadow.mapSize.height = 2048;
-    mainLight.shadow.camera.near = 0.5;
-    mainLight.shadow.camera.far = 160;
-    mainLight.shadow.bias = -0.0003;
-    scene.add(mainLight);
-
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    fillLight.position.set(-10, 8, 10);
-    scene.add(fillLight);
-
-    const rimLight = new THREE.DirectionalLight(0xffffff, 0.7);
-    rimLight.position.set(0, 10, -14);
-    scene.add(rimLight);
-
-    const frontLight = new THREE.DirectionalLight(0xffffff, 0.55);
-    frontLight.position.set(0, 4, 16);
-    scene.add(frontLight);
-
-    const grid = new THREE.GridHelper(32, 16, 0xd1d5db, 0xe5e7eb);
-    grid.position.y = -1.2;
-    scene.add(grid);
-
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(50, 50),
-      new THREE.ShadowMaterial({ opacity: 0.08 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -1.19;
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    let modelRoot = null;
-    let autoRotate = true;
-    let rotationSpeed = 0.005;
-    let currentColor = DEFAULT_COLOR;
-    const clock = new THREE.Clock();
-
-    function showLoading(text = '加载中...') {
-      loadingText.textContent = text;
-      loadingOverlay.classList.remove('hidden');
-    }
-
-    function hideLoading() {
-      loadingOverlay.classList.add('hidden');
-    }
-
-    function disposeMaterial(material) {
-      if (!material) return;
-      if (Array.isArray(material)) {
-        material.forEach(m => {
-          if (!m) return;
-          if (m.dispose) m.dispose();
-        });
-      } else if (material.dispose) {
-        material.dispose();
-      }
-    }
-
-    function clearCurrentModel() {
-      if (!modelRoot) return;
-      scene.remove(modelRoot);
-      modelRoot.traverse(obj => {
-        if (obj.geometry) obj.geometry.dispose();
-        disposeMaterial(obj.material);
+      const renderer = new THREE.WebGLRenderer({
+        canvas: document.getElementById('gearbox-canvas'),
+        antialias: true
       });
-      modelRoot = null;
-    }
-
-    function sanitizeGeometry(geometry) {
-      if (!geometry) return;
-      if (geometry.attributes.color) geometry.deleteAttribute('color');
-      geometry.computeVertexNormals();
-      geometry.computeBoundingBox();
-      geometry.computeBoundingSphere();
-    }
-
-    function createIndustrialMaterial(colorHex) {
-      return new THREE.MeshStandardMaterial({
-        color: new THREE.Color(colorHex),
-        metalness: 0.16,
-        roughness: 0.48,
-        vertexColors: false,
-        transparent: false,
-        opacity: 1
-      });
-    }
-
-    function normalizeObject(object) {
-      const box = new THREE.Box3().setFromObject(object);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z) || 1;
-
-      object.position.x -= center.x;
-      object.position.y -= box.min.y;
-      object.position.z -= center.z;
-      object.position.y -= 1.2;
-
-      const targetSize = 4.5;
-      const scale = targetSize / maxDim;
-      object.scale.setScalar(scale);
-    }
-
-    function fitCameraToObject(object, offset = 1.55) {
-      const box = new THREE.Box3().setFromObject(object);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z) || 1;
-
-      const fov = camera.fov * (Math.PI / 180);
-      let cameraZ = Math.abs((maxDim / 2) / Math.tan(fov / 2));
-      cameraZ *= offset;
-
-      camera.position.set(
-        center.x + maxDim * 0.45,
-        center.y + maxDim * 0.22,
-        center.z + cameraZ
-      );
-
-      controls.target.copy(center);
-      controls.update();
-
-      camera.near = Math.max(0.01, maxDim / 1000);
-      camera.far = Math.max(5000, maxDim * 30);
-      camera.updateProjectionMatrix();
-
-      mainLight.target.position.copy(center);
-      scene.add(mainLight.target);
-    }
-
-    function applyIndustrialMaterial(object, colorHex) {
-      object.traverse((obj) => {
-        if (!obj.isMesh) return;
-
-        sanitizeGeometry(obj.geometry);
-        disposeMaterial(obj.material);
-
-        obj.material = createIndustrialMaterial(colorHex);
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-      });
-    }
-
-    function applyColorToModel(colorHex) {
-      currentColor = colorHex;
-      if (!modelRoot) return;
-
-      modelRoot.traverse((obj) => {
-        if (obj.isMesh && obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach(mat => {
-              mat.color.set(colorHex);
-              mat.needsUpdate = true;
-            });
-          } else {
-            obj.material.color.set(colorHex);
-            obj.material.needsUpdate = true;
-          }
-        }
-      });
-    }
-
-    function updateActiveSwatch(colorHex) {
-      document.querySelectorAll('.color-swatch').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.color.toLowerCase() === colorHex.toLowerCase());
-      });
-    }
-
-    function createFallbackModel() {
-      const group = new THREE.Group();
-
-      const body = new THREE.Mesh(
-        new THREE.BoxGeometry(2, 1.2, 1.5),
-        createIndustrialMaterial(currentColor)
-      );
-      body.castShadow = true;
-      body.receiveShadow = true;
-      group.add(body);
-
-      const shaftMat = new THREE.MeshStandardMaterial({
-        color: 0xbec5cd,
-        metalness: 0.58,
-        roughness: 0.24
-      });
-
-      const shaft1 = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.18, 1.8, 32),
-        shaftMat
-      );
-      shaft1.rotation.x = Math.PI / 2;
-      shaft1.position.z = 1.05;
-      shaft1.castShadow = true;
-      group.add(shaft1);
-
-      const shaft2 = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.24, 0.24, 2.2, 32),
-        shaftMat
-      );
-      shaft2.rotation.x = Math.PI / 2;
-      shaft2.position.z = -1.15;
-      shaft2.castShadow = true;
-      group.add(shaft2);
-
-      const topBox = new THREE.Mesh(
-        new THREE.BoxGeometry(0.9, 0.5, 0.9),
-        createIndustrialMaterial(currentColor)
-      );
-      topBox.position.set(0.3, 0.8, 0);
-      topBox.castShadow = true;
-      group.add(topBox);
-
-      return group;
-    }
-
-    function finalizeLoadedModel(object) {
-      modelRoot = object;
-      applyIndustrialMaterial(modelRoot, currentColor);
-      normalizeObject(modelRoot);
-      scene.add(modelRoot);
-      fitCameraToObject(modelRoot);
-      hideLoading();
-    }
-
-    function loadDefaultModel() {
-      showLoading('加载默认模型...');
-      clearCurrentModel();
-
-      const loader = new THREE.GLTFLoader();
-      const dracoLoader = new THREE.DRACOLoader();
-      dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.140.2/examples/js/libs/draco/');
-      loader.setDRACOLoader(dracoLoader);
-
-      loader.load(
-        'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf',
-        (gltf) => {
-          finalizeLoadedModel(gltf.scene);
-        },
-        (xhr) => {
-          if (xhr.total) {
-            const progress = Math.round((xhr.loaded / xhr.total) * 100);
-            showLoading(`加载默认模型... ${progress}%`);
-          }
-        },
-        () => {
-          finalizeLoadedModel(createFallbackModel());
-        }
-      );
-    }
-
-    function loadGLTForGLB(url) {
-      const loader = new THREE.GLTFLoader();
-      const dracoLoader = new THREE.DRACOLoader();
-      dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.140.2/examples/js/libs/draco/');
-      loader.setDRACOLoader(dracoLoader);
-
-      loader.load(
-        url,
-        (gltf) => {
-          finalizeLoadedModel(gltf.scene);
-          URL.revokeObjectURL(url);
-        },
-        undefined,
-        (err) => {
-          console.error(err);
-          URL.revokeObjectURL(url);
-          hideLoading();
-          alert('GLTF / GLB 模型加载失败，请检查转换结果。');
-        }
-      );
-    }
-
-    function loadOBJ(url) {
-      const loader = new THREE.OBJLoader();
-      loader.load(
-        url,
-        (object) => {
-          let hasMesh = false;
-
-          object.traverse((child) => {
-            if (child.isMesh) {
-              hasMesh = true;
-              sanitizeGeometry(child.geometry);
-
-              if (!child.material) {
-                child.material = createIndustrialMaterial(currentColor);
-              }
-            }
-          });
-
-          if (!hasMesh) {
-            URL.revokeObjectURL(url);
-            hideLoading();
-            alert('OBJ 已读取，但未检测到可显示网格。请检查导出设置。');
-            return;
-          }
-
-          finalizeLoadedModel(object);
-          URL.revokeObjectURL(url);
-        },
-        undefined,
-        (err) => {
-          console.error(err);
-          URL.revokeObjectURL(url);
-          hideLoading();
-          alert('OBJ 模型加载失败。若 OBJ 依赖 MTL/贴图但未一起提供，也可能显示异常。');
-        }
-      );
-    }
-
-    function loadSTL(url) {
-      const loader = new THREE.STLLoader();
-      loader.load(
-        url,
-        (geometry) => {
-          sanitizeGeometry(geometry);
-
-          const mesh = new THREE.Mesh(
-            geometry,
-            createIndustrialMaterial(currentColor)
-          );
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-
-          const group = new THREE.Group();
-          group.add(mesh);
-
-          finalizeLoadedModel(group);
-          URL.revokeObjectURL(url);
-        },
-        undefined,
-        (err) => {
-          console.error(err);
-          URL.revokeObjectURL(url);
-          hideLoading();
-          alert('STL 模型加载失败。');
-        }
-      );
-    }
-
-    function loadUserModel(file) {
-      const ext = file.name.toLowerCase().split('.').pop();
-      const url = URL.createObjectURL(file);
-
-      showLoading('加载上传模型...');
-      clearCurrentModel();
-
-      if (ext === 'gltf' || ext === 'glb') {
-        loadGLTForGLB(url);
-        return;
-      }
-
-      if (ext === 'obj') {
-        loadOBJ(url);
-        return;
-      }
-
-      if (ext === 'stl') {
-        loadSTL(url);
-        return;
-      }
-
-      URL.revokeObjectURL(url);
-      hideLoading();
-      alert('当前支持 GLTF / GLB / OBJ / STL 格式。');
-    }
-
-    document.getElementById('rotation-speed').addEventListener('input', (e) => {
-      rotationSpeed = Number(e.target.value) * 0.001;
-    });
-
-    document.getElementById('ambient-light').addEventListener('input', (e) => {
-      const v = Number(e.target.value) / 100;
-      ambientLight.intensity = 0.7 + v * 0.3;
-      hemiLight.intensity = 0.7 + v * 0.25;
-      mainLight.intensity = 1.0 + v * 0.5;
-      fillLight.intensity = 0.45 + v * 0.25;
-      rimLight.intensity = 0.4 + v * 0.22;
-      frontLight.intensity = 0.3 + v * 0.2;
-      renderer.toneMappingExposure = 0.9 + v * 0.12;
-    });
-
-    document.getElementById('scale-control').addEventListener('input', (e) => {
-      if (!modelRoot) return;
-      const scale = Number(e.target.value) / 100;
-      modelRoot.scale.set(scale, scale, scale);
-    });
-
-    document.querySelectorAll('.color-swatch').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const color = btn.dataset.color;
-        applyColorToModel(color);
-        updateActiveSwatch(color);
-      });
-    });
-
-    document.getElementById('reset-view').addEventListener('click', () => {
-      if (!modelRoot) return;
-
-      modelRoot.rotation.set(0, 0, 0);
-      modelRoot.scale.set(1, 1, 1);
-
-      document.getElementById('scale-control').value = 100;
-      document.getElementById('rotation-speed').value = 5;
-      document.getElementById('ambient-light').value = 120;
-
-      rotationSpeed = 0.005;
-      ambientLight.intensity = 1.05;
-      hemiLight.intensity = 1.0;
-      mainLight.intensity = 1.6;
-      fillLight.intensity = 0.8;
-      rimLight.intensity = 0.7;
-      frontLight.intensity = 0.55;
-      renderer.toneMappingExposure = 1.0;
-
-      fitCameraToObject(modelRoot);
-      applyColorToModel(currentColor);
-    });
-
-    document.getElementById('toggle-rotate').addEventListener('click', (e) => {
-      autoRotate = !autoRotate;
-      e.currentTarget.innerHTML = autoRotate
-        ? '<i class="fa fa-repeat mr-1"></i>暂停旋转'
-        : '<i class="fa fa-play mr-1"></i>继续旋转';
-    });
-
-    document.getElementById('upload-btn').addEventListener('click', () => {
-      fileInput.click();
-    });
-
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) loadUserModel(file);
-      e.target.value = '';
-    });
-
-    window.addEventListener('resize', () => {
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
+      renderer.setSize(canvasContainer.offsetWidth, canvasContainer.offsetHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    });
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.02;
 
-    function animate() {
-      requestAnimationFrame(animate);
-      const delta = clock.getDelta();
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.rotateSpeed = 0.5;
+      controls.enableZoom = true;
+      controls.zoomSpeed = 1;
+      controls.enablePan = true;
+      controls.panSpeed = 0.5;
 
-      if (modelRoot && autoRotate) {
-        modelRoot.rotation.y += rotationSpeed * (delta * 60);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+      scene.add(ambientLight);
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0xdbe3ea, 0.55);
+      scene.add(hemiLight);
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.65);
+      keyLight.position.set(6, 10, 8);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.width = 2048;
+      keyLight.shadow.mapSize.height = 2048;
+      keyLight.shadow.bias = -0.00025;
+      scene.add(keyLight);
+
+      const fillLight = new THREE.DirectionalLight(0xffffff, 0.85);
+      fillLight.position.set(-6, 4, 7);
+      scene.add(fillLight);
+
+      const rimLight = new THREE.DirectionalLight(0xffffff, 0.55);
+      rimLight.position.set(0, 6, -7);
+      scene.add(rimLight);
+
+      const pointLight = new THREE.PointLight(0xffffff, 0.35);
+      pointLight.position.set(-4, 3, 4);
+      scene.add(pointLight);
+
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(40, 40),
+        new THREE.ShadowMaterial({ opacity: 0.09 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -1.2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      const gridHelper = new THREE.GridHelper(24, 12, 0xd9dee5, 0xe9edf2);
+      gridHelper.position.y = -1.19;
+      scene.add(gridHelper);
+
+      let modelRoot = null;
+      let autoRotate = true;
+      let rotationSpeed = 0.005;
+      let currentColor = '#9aa0a6';
+
+      function showLoading(text) {
+        const overlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        loadingText.textContent = text || '加载中...';
+        overlay.classList.remove('hidden');
       }
 
-      controls.update();
-      renderer.render(scene, camera);
-    }
+      function hideLoading() {
+        document.getElementById('loading-overlay').classList.add('hidden');
+      }
 
-    updateActiveSwatch(DEFAULT_COLOR);
-    loadDefaultModel();
-    animate();
+      function disposeMaterial(material) {
+        if (!material) return;
+        if (Array.isArray(material)) {
+          material.forEach(m => m && m.dispose && m.dispose());
+        } else if (material.dispose) {
+          material.dispose();
+        }
+      }
+
+      function clearCurrentModel() {
+        if (!modelRoot) return;
+        scene.remove(modelRoot);
+        modelRoot.traverse(obj => {
+          if (obj.geometry) obj.geometry.dispose();
+          disposeMaterial(obj.material);
+        });
+        modelRoot = null;
+      }
+
+      function computeAndFixNormals(obj) {
+        obj.traverse(child => {
+          if (child.isMesh && child.geometry) {
+            if (child.geometry.attributes.color) {
+              child.geometry.deleteAttribute('color');
+            }
+            child.geometry.computeVertexNormals();
+          }
+        });
+      }
+
+      function enhanceExistingMaterial(material, colorHex, preserveOriginal = true) {
+        let baseColor = new THREE.Color(colorHex);
+
+        if (preserveOriginal && material && material.color) {
+          baseColor = material.color.clone();
+        }
+
+        const isMetalLike = preserveOriginal && material && typeof material.metalness === 'number'
+          ? material.metalness > 0.45
+          : false;
+
+        return new THREE.MeshStandardMaterial({
+          color: baseColor,
+          metalness: isMetalLike ? 0.45 : 0.22,
+          roughness: isMetalLike ? 0.34 : 0.52,
+          transparent: false,
+          opacity: 1
+        });
+      }
+
+      function applyDisplayStyle(object, options = {}) {
+        const preserveOriginal = options.preserveOriginal !== false;
+        const tintColor = options.tintColor || currentColor;
+
+        object.traverse(child => {
+          if (!child.isMesh) return;
+
+          child.castShadow = true;
+          child.receiveShadow = true;
+
+          if (child.geometry) {
+            if (child.geometry.attributes.color) {
+              child.geometry.deleteAttribute('color');
+            }
+            child.geometry.computeVertexNormals();
+          }
+
+          if (Array.isArray(child.material)) {
+            const oldMaterials = child.material;
+            child.material = oldMaterials.map(mat => enhanceExistingMaterial(mat, tintColor, preserveOriginal));
+            oldMaterials.forEach(m => disposeMaterial(m));
+          } else if (child.material) {
+            const oldMat = child.material;
+            child.material = enhanceExistingMaterial(oldMat, tintColor, preserveOriginal);
+            disposeMaterial(oldMat);
+          } else {
+            child.material = new THREE.MeshStandardMaterial({
+              color: new THREE.Color(tintColor),
+              metalness: 0.22,
+              roughness: 0.5
+            });
+          }
+        });
+      }
+
+      function applyUserColor(colorHex) {
+        currentColor = colorHex;
+        if (!modelRoot) return;
+
+        modelRoot.traverse(child => {
+          if (!child.isMesh || !child.material) return;
+
+          const applyToMat = (mat) => {
+            if (!mat || !mat.color) return;
+            mat.color.set(colorHex);
+            mat.needsUpdate = true;
+          };
+
+          if (Array.isArray(child.material)) {
+            child.material.forEach(applyToMat);
+          } else {
+            applyToMat(child.material);
+          }
+        });
+      }
+
+      function updateColorButtons(colorHex) {
+        document.querySelectorAll('.color-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.color.toLowerCase() === colorHex.toLowerCase());
+        });
+      }
+
+      function normalizeModel(object) {
+        const box = new THREE.Box3().setFromObject(object);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+
+        object.position.x -= center.x;
+        object.position.z -= center.z;
+        object.position.y -= box.min.y;
+        object.position.y -= 1.2;
+
+        const targetMaxDim = 3.6;
+        const scale = targetMaxDim / maxDim;
+        object.scale.setScalar(scale);
+      }
+
+      function fitCameraToObject(camera, object, controls, offset = 1.35) {
+        const boundingBox = new THREE.Box3().setFromObject(object);
+        const center = boundingBox.getCenter(new THREE.Vector3());
+        const size = boundingBox.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+
+        const fov = camera.fov * Math.PI / 180;
+        let cameraZ = Math.abs((maxDim / 2) / Math.tan(fov / 2));
+        cameraZ *= offset;
+
+        camera.position.set(
+          center.x + maxDim * 0.35,
+          center.y + maxDim * 0.20,
+          center.z + cameraZ
+        );
+
+        camera.near = Math.max(0.01, maxDim / 1000);
+        camera.far = Math.max(5000, maxDim * 30);
+        camera.updateProjectionMatrix();
+
+        controls.target.copy(center);
+        controls.update();
+
+        keyLight.target.position.copy(center);
+        scene.add(keyLight.target);
+      }
+
+      function finalizeModel(object, options = {}) {
+        modelRoot = object;
+        computeAndFixNormals(modelRoot);
+        applyDisplayStyle(modelRoot, options);
+        normalizeModel(modelRoot);
+        scene.add(modelRoot);
+        fitCameraToObject(camera, modelRoot, controls);
+        hideLoading();
+      }
+
+      function createPlaceholderModel() {
+        const group = new THREE.Group();
+
+        const bodyMaterial = new THREE.MeshPhongMaterial({
+          color: 0x9aa0a6,
+          shininess: 95,
+          specular: 0x333333
+        });
+
+        const motorMaterial = new THREE.MeshPhongMaterial({
+          color: 0x374151,
+          shininess: 75,
+          specular: 0x222222
+        });
+
+        const shaftMaterial = new THREE.MeshPhongMaterial({
+          color: 0xC9D1D9,
+          shininess: 120,
+          specular: 0x444444
+        });
+
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.0, 1.3), bodyMaterial);
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+
+        const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.6, 32), motorMaterial);
+        motor.position.set(0, -1.0, 0);
+        motor.castShadow = true;
+        motor.receiveShadow = true;
+        group.add(motor);
+
+        const shaftTop = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.7, 32), shaftMaterial);
+        shaftTop.position.set(0, 0.95, 0);
+        shaftTop.castShadow = true;
+        group.add(shaftTop);
+
+        const flange = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.08, 40), bodyMaterial);
+        flange.position.set(0, 0.65, 0);
+        flange.castShadow = true;
+        group.add(flange);
+
+        return group;
+      }
+
+      function loadDefaultModel() {
+        showLoading('加载默认模型...');
+        clearCurrentModel();
+
+        const loader = new THREE.GLTFLoader();
+        const dracoLoader = new THREE.DRACOLoader();
+        dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.140.2/examples/js/libs/draco/');
+        loader.setDRACOLoader(dracoLoader);
+
+        loader.load(
+          'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf',
+          (gltf) => {
+            finalizeModel(gltf.scene, { preserveOriginal: true });
+          },
+          (xhr) => {
+            if (xhr.total) {
+              const progress = Math.round((xhr.loaded / xhr.total) * 100);
+              showLoading(`加载默认模型... ${progress}%`);
+            }
+          },
+          () => {
+            finalizeModel(createPlaceholderModel(), { preserveOriginal: true });
+          }
+        );
+      }
+
+      function loadGLTFOrGLB(fileURL) {
+        const loader = new THREE.GLTFLoader();
+        const dracoLoader = new THREE.DRACOLoader();
+        dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.140.2/examples/js/libs/draco/');
+        loader.setDRACOLoader(dracoLoader);
+
+        loader.load(
+          fileURL,
+          (gltf) => {
+            finalizeModel(gltf.scene, { preserveOriginal: true });
+            URL.revokeObjectURL(fileURL);
+          },
+          undefined,
+          (error) => {
+            console.error(error);
+            URL.revokeObjectURL(fileURL);
+            hideLoading();
+            alert('GLTF / GLB 模型加载失败。');
+          }
+        );
+      }
+
+      function loadOBJ(fileURL) {
+        const loader = new THREE.OBJLoader();
+
+        loader.load(
+          fileURL,
+          (object) => {
+            let hasMesh = false;
+
+            object.traverse(child => {
+              if (child.isMesh) {
+                hasMesh = true;
+                child.castShadow = true;
+                child.receiveShadow = true;
+              }
+            });
+
+            if (!hasMesh) {
+              URL.revokeObjectURL(fileURL);
+              hideLoading();
+              alert('OBJ 已读取，但未检测到可显示网格。');
+              return;
+            }
+
+            finalizeModel(object, { preserveOriginal: false, tintColor: currentColor });
+            URL.revokeObjectURL(fileURL);
+          },
+          undefined,
+          (error) => {
+            console.error(error);
+            URL.revokeObjectURL(fileURL);
+            hideLoading();
+            alert('OBJ 模型加载失败。');
+          }
+        );
+      }
+
+      function loadSTL(fileURL) {
+        const loader = new THREE.STLLoader();
+
+        loader.load(
+          fileURL,
+          (geometry) => {
+            geometry.computeVertexNormals();
+
+            const mesh = new THREE.Mesh(
+              geometry,
+              new THREE.MeshStandardMaterial({
+                color: new THREE.Color(currentColor),
+                metalness: 0.22,
+                roughness: 0.5
+              })
+            );
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            const group = new THREE.Group();
+            group.add(mesh);
+
+            finalizeModel(group, { preserveOriginal: false, tintColor: currentColor });
+            URL.revokeObjectURL(fileURL);
+          },
+          undefined,
+          (error) => {
+            console.error(error);
+            URL.revokeObjectURL(fileURL);
+            hideLoading();
+            alert('STL 模型加载失败。');
+          }
+        );
+      }
+
+      function loadUploadedModel(file) {
+        const fileURL = URL.createObjectURL(file);
+        const ext = file.name.toLowerCase().split('.').pop();
+
+        showLoading('加载上传模型...');
+        clearCurrentModel();
+
+        if (ext === 'gltf' || ext === 'glb') {
+          loadGLTFOrGLB(fileURL);
+          return;
+        }
+
+        if (ext === 'obj') {
+          loadOBJ(fileURL);
+          return;
+        }
+
+        if (ext === 'stl') {
+          loadSTL(fileURL);
+          return;
+        }
+
+        URL.revokeObjectURL(fileURL);
+        hideLoading();
+        alert('仅支持 GLTF / GLB / OBJ / STL 格式。');
+      }
+
+      document.getElementById('rotation-speed').addEventListener('input', function (e) {
+        rotationSpeed = e.target.value * 0.001;
+      });
+
+      document.getElementById('scale-control').addEventListener('input', function (e) {
+        if (!modelRoot) return;
+        const scale = e.target.value / 100;
+        modelRoot.scale.set(scale, scale, scale);
+      });
+
+      document.getElementById('ambient-light').addEventListener('input', function (e) {
+        const intensity = e.target.value / 100;
+        ambientLight.intensity = intensity;
+        hemiLight.intensity = 0.4 + intensity * 0.2;
+        keyLight.intensity = 1.1 + intensity * 0.7;
+        fillLight.intensity = 0.5 + intensity * 0.35;
+        rimLight.intensity = 0.35 + intensity * 0.2;
+        renderer.toneMappingExposure = 0.92 + intensity * 0.15;
+      });
+
+      document.getElementById('reset-view').addEventListener('click', function () {
+        if (!modelRoot) return;
+
+        controls.reset();
+        modelRoot.rotation.set(0, 0, 0);
+        modelRoot.scale.set(1, 1, 1);
+
+        document.getElementById('scale-control').value = 100;
+        document.getElementById('rotation-speed').value = 5;
+        document.getElementById('ambient-light').value = 75;
+
+        rotationSpeed = 0.005;
+        ambientLight.intensity = 0.75;
+        hemiLight.intensity = 0.55;
+        keyLight.intensity = 1.65;
+        fillLight.intensity = 0.85;
+        rimLight.intensity = 0.55;
+        renderer.toneMappingExposure = 1.02;
+
+        fitCameraToObject(camera, modelRoot, controls);
+      });
+
+      document.querySelectorAll('.color-btn').forEach(button => {
+        button.addEventListener('click', function () {
+          const color = this.getAttribute('data-color');
+          applyUserColor(color);
+          updateColorButtons(color);
+        });
+      });
+
+      document.getElementById('toggle-rotate').addEventListener('click', function () {
+        autoRotate = !autoRotate;
+        this.innerHTML = autoRotate
+          ? '<i class="fa fa-repeat mr-1"></i>暂停旋转'
+          : '<i class="fa fa-play mr-1"></i>继续旋转';
+      });
+
+      function initModelUpload() {
+        const uploadModal = document.getElementById('upload-modal');
+        const uploadBtn = document.getElementById('upload-model-btn');
+        const closeModalBtn = document.getElementById('close-modal');
+        const cancelUploadBtn = document.getElementById('cancel-upload');
+        const confirmUploadBtn = document.getElementById('confirm-upload');
+        const fileInput = document.getElementById('file-input');
+        const dropArea = document.getElementById('drop-area');
+        const fileNameDisplay = document.getElementById('file-name');
+
+        let selectedFile = null;
+
+        uploadBtn.addEventListener('click', () => uploadModal.classList.remove('hidden'));
+        closeModalBtn.addEventListener('click', resetUploadModal);
+        cancelUploadBtn.addEventListener('click', resetUploadModal);
+
+        fileInput.addEventListener('change', e => handleFileSelection(e.target.files[0]));
+        dropArea.addEventListener('click', () => fileInput.click());
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+          dropArea.addEventListener(eventName, e => {
+            e.preventDefault();
+            e.stopPropagation();
+          }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+          dropArea.addEventListener(eventName, () => {
+            dropArea.classList.add('border-primary');
+            dropArea.classList.add('bg-primary/5');
+          }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+          dropArea.addEventListener(eventName, () => {
+            dropArea.classList.remove('border-primary');
+            dropArea.classList.remove('bg-primary/5');
+          }, false);
+        });
+
+        dropArea.addEventListener('drop', e => {
+          const files = e.dataTransfer.files;
+          if (files.length > 0) handleFileSelection(files[0]);
+        }, false);
+
+        function handleFileSelection(file) {
+          if (!file) return;
+
+          const supportedFormats = ['.gltf', '.glb', '.obj', '.stl'];
+          const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+
+          if (supportedFormats.includes(fileExtension) || file.type === 'model/gltf-binary' || file.type === 'model/gltf+json') {
+            selectedFile = file;
+            fileNameDisplay.textContent = file.name;
+            confirmUploadBtn.disabled = false;
+          } else {
+            alert('请选择支持的 3D 模型文件：GLTF / GLB / OBJ / STL');
+            resetUploadModal();
+          }
+        }
+
+        confirmUploadBtn.addEventListener('click', () => {
+          if (selectedFile) {
+            uploadModal.classList.add('hidden');
+            loadUploadedModel(selectedFile);
+          }
+        });
+
+        function resetUploadModal() {
+          uploadModal.classList.add('hidden');
+          selectedFile = null;
+          fileInput.value = '';
+          fileNameDisplay.textContent = '';
+          confirmUploadBtn.disabled = true;
+          dropArea.classList.remove('border-primary');
+          dropArea.classList.remove('bg-primary/5');
+        }
+      }
+
+      let clock = new THREE.Clock();
+
+      function animate() {
+        requestAnimationFrame(animate);
+        if (modelRoot && autoRotate) {
+          modelRoot.rotation.y += rotationSpeed;
+        }
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener('resize', function () {
+        const width = canvasContainer.offsetWidth;
+        const height = canvasContainer.offsetHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      });
+
+      updateColorButtons(currentColor);
+      initModelUpload();
+      loadDefaultModel();
+      animate();
+    });
   </script>
 </body>
 </html>
